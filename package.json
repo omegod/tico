@@ -1,0 +1,43 @@
+{
+  "name": "@omgod/tico",
+  "version": "1.0.0",
+  "description": "tico is a reusable high-performance 2D command-line game engine with example games",
+  "main": "src/index.js",
+  "bin": {
+    "tico": "bin/tico.js"
+  },
+  "scripts": {
+    "start": "node example/star-hunter/index.js",
+    "demo": "node example/star-hunter/index.js",
+    "example:star-hunter": "node example/star-hunter/src/index.js",
+    "example:tetris": "node example/tetris/src/index.js",
+    "test": "node tests/run-tests.js",
+    "coverage": "node tests/coverage.js"
+  },
+  "keywords": [
+    "game-engine",
+    "2d",
+    "cli",
+    "ascii",
+    "tui"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "blessed": "^0.1.81"
+  },
+  "directories": {
+    "doc": "docs",
+    "example": "example",
+    "test": "tests"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omegod/tico.git"
+  },
+  "author": "omg",
+  "bugs": {
+    "url": "https://github.com/omegod/tico/issues"
+  },
+  "homepage": "https://github.com/omegod/tico#readme"
+}
