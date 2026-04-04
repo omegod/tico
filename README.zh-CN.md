@@ -73,11 +73,14 @@ app.start('hello');
 
 ## 示例
 
-```bash
-npm run example:star-hunter
-npm run example:snake
-npm run example:tetris
-```
+| 游戏 | 说明 | 运行命令 |
+|------|------|----------|
+| **星际猎手** | 弹幕射击游戏，6种战机，Boss战斗 | `npm run example:star-hunter` |
+| **俄罗斯方块** | 经典方块游戏，7-Bag随机算法，幽灵方块 | `npm run example:tetris` |
+
+
+- [星际猎手详细介绍](./example/star-hunter/docs/README.zh-CN.md)
+- [俄罗斯方块详细介绍](./example/tetris/docs/README.zh-CN.md)
 
 ```bash
 npm test

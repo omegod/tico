@@ -73,11 +73,13 @@ app.start('hello');
 
 ## Examples
 
-```bash
-npm run example:star-hunter
-npm run example:snake
-npm run example:tetris
-```
+| Game | Description | Run |
+|------|-------------|-----|
+| **Star Hunter** | Bullet-hell shoot 'em up with 6 playable ships and boss battles | `npm run example:star-hunter` |
+| **Tetris** | Classic Tetris with 7-bag randomization and ghost piece | `npm run example:tetris` |
+
+- [Star Hunter Details](./example/star-hunter/docs/README.md)
+- [Tetris Details](./example/tetris/docs/README.md)
 
 ```bash
 npm test
