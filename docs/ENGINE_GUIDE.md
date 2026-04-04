@@ -157,11 +157,11 @@ Main methods:
 
 - `setCamera(camera)`
 - `clear()`
-- `drawCell(x, y, char, color, bold, layer)`
-- `drawString(x, y, text, color, bold, layer)`
-- `drawText(x, y, lines, color, bold, layer)`
-- `drawArt(x, y, art, color, bold, layer)`
-- `fillRect(x, y, width, height, char, color, bold, layer)`
+- `drawCell(x, y, char, color, bold, layer, bgColor)`
+- `drawString(x, y, text, color, bold, layer, bgColor)`
+- `drawText(x, y, lines, color, bold, layer, bgColor)`
+- `drawArt(x, y, art, color, bold, layer, bgColor)`
+- `fillRect(x, y, width, height, char = ' ', color, bold, layer, bgColor)`
 - `renderBackground(layer)`
 - `scrollBackground()`
 
