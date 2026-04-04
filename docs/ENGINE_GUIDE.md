@@ -258,12 +258,756 @@ Recommended workflow:
 
 - Keep scene initialization in constructors
 - Reset per-run state in `onEnter`
+
+## 14. API Reference
+
+This section documents the public symbols exported by `src/engine/index.js`.
+
+### 14.1 Runtime
+
+#### `EngineApp`
+
+`new EngineApp(options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `width` | number | `80` | Terminal width used by the renderer and scene camera. |
+| `height` | number | `32` | Terminal height used by the renderer and scene camera. |
+| `frameRate` | number | `50` | Loop interval in milliseconds. |
+| `stdout` | stream | `process.stdout` | Destination for terminal output. |
+| `eventBus` | `EventBus` | new instance | Shared event bus. |
+| `engine` | `GameEngine` | new instance | Custom engine instance. |
+| `entities` | `EntityManager` | new instance | Entity container used by scenes and systems. |
+| `renderer` | `Renderer` | new instance | ASCII renderer. |
+| `input` | `InputHandler` | new instance | Keyboard handler. |
+| `resources` | `ResourceManager` | new instance | Asset cache. |
+| `animations` | `AnimationPlayer` | new instance | Tween manager. |
+| `physics` | `PhysicsWorld` | new instance | Lightweight collision/query world. |
+
+Returns: `EngineApp`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `getRuntime()` | none | object | Returns the current runtime bundle (`width`, `height`, `stdout`, `engine`, `entities`, `renderer`, `input`, `resources`, `animations`, `physics`). |
+| `addScene(name, scene)` | `name: string`, `scene: Scene` | `this` | Registers a scene and attaches the app to it. |
+| `start(sceneName)` | `sceneName: string` | `this` | Initializes terminal input, binds cleanup handlers, starts the scene, and starts the engine loop. |
+| `switchScene(name)` | `name: string` | `this` | Switches to another registered scene. |
+| `stop()` | none | `void` | Stops the active scene, stops the engine, and restores terminal input state. |
+
+#### `GameEngine`
+
+`new GameEngine(options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `width` | number | `80` | Logical width used by systems. |
+| `height` | number | `32` | Logical height used by systems. |
+| `frameRate` | number | `50` | Legacy interval value, measured in milliseconds. |
+| `frameDuration` | number | `frameRate` | Frame scheduling interval in milliseconds. |
+| `fixedDelta` | number | `frameDuration` | Fixed-step update interval. |
+| `maxDelta` | number | `250` | Delta clamp to prevent huge frame jumps. |
+| `timeScale` | number | `1` | Global speed multiplier. |
+| `initialState` | string | `GAME_STATE.BOOT` | Initial engine state. |
+| `eventBus` | `EventBus` | new instance | Shared event bus. |
+
+Returns: `GameEngine`
+
+`GAME_STATE` enum:
+
+| Value | Meaning |
+|---|---|
+| `BOOT` | Boot state before the game loop becomes interactive. |
+| `RUNNING` | Active engine state used immediately after boot. |
+| `STOPPED` | Loop has been stopped and the engine is inactive. |
+| `MENU` | Main menu state. |
+| `SHIP_SELECT` | Ship selection state. |
+| `INSTRUCTIONS` | How-to-play / instructions state. |
+| `PLAYING` | In-game active state. |
+| `PAUSED` | Paused gameplay state. |
+| `GAME_OVER` | Loss state. |
+| `VICTORY` | Win state. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `onRender(callback)` | `callback(dt, frameCount, alpha)` | `void` | Registers the per-frame render callback. |
+| `init()` | none | `void` | Starts the loop bookkeeping and emits `GameEvents.GAME_START`. |
+| `stop()` | none | `void` | Stops the loop, clears the timeout, and clears the event bus. |
+| `pause()` | none | `void` | Switches from `PLAYING` or `RUNNING` to `PAUSED`. |
+| `resume()` | none | `void` | Restores the previous state after pause. |
+| `togglePause()` | none | `void` | Toggles pause and resume. |
+| `setState(newState)` | `newState: string` | `string` | Sets state and returns the previous state. |
+| `registerSystem(system)` | `system: { update?, fixedUpdate? }` | `void` | Adds a system to the engine update list. |
+| `unregisterSystem(system)` | `system: object` | `void` | Removes a system from the engine update list. |
+| `setEntityManager(entityManager)` | `entityManager: EntityManager` | `void` | Binds the engine to an entity manager. |
+| `setTimeScale(scale)` | `scale: number` | `void` | Sets the global simulation speed. |
+| `setFixedDelta(delta)` | `delta: number` | `void` | Sets the fixed update step. |
+| `loop()` | none | `void` | Runs one frame and schedules the next tick. |
+| `startLoop()` | none | `void` | Starts the engine if needed and enters the main loop. |
+| `getState()` | none | `string` | Returns the current state. |
+| `isInteractive()` | none | `boolean` | Returns whether the current state is a menu-like state. |
+| `isPaused()` | none | `boolean` | Returns whether the engine is paused. |
+| `isPlaying()` | none | `boolean` | Returns whether the engine is in `PLAYING`. |
+
+### 14.2 Scene System
+
+#### `Scene`
+
+`new Scene(name = 'scene', options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `name` | string | `'scene'` | Scene identifier. |
+| `options.camera` | `Camera2D` | new instance | Camera used for rendering. |
+| `options.managed` | boolean | `true` | Whether the scene binds itself into the engine runtime. |
+| `options.autoClear` | boolean | `true` | Whether the renderer clears every frame. |
+| `options.autoPresent` | boolean | `true` | Whether the frame is written to `stdout` automatically. |
+
+Returns: `Scene`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `attach(app)` | `app: EngineApp` | `void` | Attaches the scene to an app instance. |
+| `detach()` | none | `void` | Clears the app reference. |
+| `enter()` | none | `void` | Marks the scene active, binds runtime hooks if needed, and calls `onEnter(app)`. |
+| `exit()` | none | `void` | Calls `onExit(app)`, unbinds runtime hooks, and marks the scene inactive. |
+| `onEnter()` | hook | `void` | Override for scene setup. |
+| `onExit()` | hook | `void` | Override for teardown. |
+| `onUpdate()` | hook | `void` | Override for per-frame game logic. |
+| `onFixedUpdate()` | hook | `void` | Override for fixed-step logic. |
+| `onRender()` | hook | `void` | Override for render-time overlays or UI. |
+| `onInput()` | hook | `void` | Override for raw input handling. |
+
+Scene hook signatures:
+
+- `onEnter(app)`
+- `onExit(app)`
+- `onUpdate(dt, frameCount, meta, app)`
+- `onFixedUpdate(dt, frameCount, app)`
+- `onRender({ app, renderer, dt, frameCount, alpha })`
+- `onInput(key, keyInfo, app)`
+
+#### `SceneManager`
+
+`new SceneManager(app)`
+
+| Input | Type | Description |
+|---|---|---|
+| `app` | `EngineApp` | App instance shared by all scenes. |
+
+Returns: `SceneManager`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `add(name, scene)` | `name: string`, `scene: Scene` | `Scene` | Registers and attaches a scene. |
+| `get(name)` | `name: string` | `Scene \| null` | Returns a scene or `null`. |
+| `start(name)` | `name: string` | `Scene` | Exits the current scene, enters the named scene, and throws if it does not exist. |
+| `switchTo(name)` | `name: string` | `Scene` | Alias of `start(name)`. |
+| `stop()` | none | `void` | Exits the current scene, if any. |
+
+### 14.3 Input
+
+#### `InputHandler`
+
+`new InputHandler(options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `options.releaseTimeoutMs` | number | `180` | Time in milliseconds before a pressed key is treated as released if no repeat arrives. |
+
+Returns: `InputHandler`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `init()` | none | `void` | Creates the readline interface and begins keypress tracking. |
+| `initTerminal()` | none | `void` | Switches to the alternate terminal buffer and hides the cursor. |
+| `cleanup()` | none | `void` | Restores terminal state and clears listeners and cached key state. |
+| `onKey(callback)` | `callback(key, keyInfo)` | `() => void` | Registers a key listener and returns an unsubscribe function. |
+| `isPressed(key)` | `key: string` | `boolean` | Returns whether the key is currently held. |
+| `isJustPressed(key)` | `key: string` | `boolean` | Returns whether the key was pressed this frame. |
+| `isJustReleased(key)` | `key: string` | `boolean` | Returns whether the key was released this frame. |
+| `afterFrame(now)` | `now?: number` | `void` | Clears one-frame flags and expires stale pressed keys. |
+| `createContext(actionMap)` | `actionMap: ActionMap` | `InputActionContext` | Creates a buffered action context. |
+| `removeContext(context)` | `context: InputActionContext` | `void` | Removes an action context. |
+| `getPressedKeys()` | none | `Set<string>` | Returns the current pressed-key set. |
+| `releaseKey(key)` | `key: string` | `void` | Manually removes a key from the pressed set. |
+| `clearPressedKeys()` | none | `void` | Clears pressed keys and state caches. |
+
+#### `InputActionContext`
+
+Returned by `InputHandler.createContext(actionMap)`.
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `_handleKey(key)` | `key: string` | `void` | Internal buffer update used by `InputHandler`. |
+| `consume(action)` | `action: string` | `boolean` | Consumes one buffered action press. |
+| `peek(action)` | `action: string` | `boolean` | Checks whether an action is buffered. |
+| `clear()` | none | `void` | Clears the action buffer. |
+| `destroy()` | none | `void` | Unregisters the context from the input handler. |
+
+#### `ActionMap`
+
+`new ActionMap(bindings = {})`
+
+| Input | Type | Description |
+|---|---|---|
+| `bindings` | object | Mapping from action names to a string or array of key names. |
+
+Returns: `ActionMap`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `bind(action, keys)` | `action: string`, `keys: string \| string[]` | `this` | Binds one action to one or more keys. |
+| `getKeys(action)` | `action: string` | `string[]` | Returns the bound keys for an action. |
+| `getAction(key)` | `key: string` | `string \| null` | Returns the first action mapped to a key. |
+| `matches(key, action)` | `key: string`, `action: string` | `boolean` | Checks whether the key belongs to the action. |
+
+#### `KeyMapping`
+
+`KeyMapping` is a built-in action-to-key map.
+
+| Action | Keys |
+|---|---|
+| `MOVE_UP` | `ArrowUp`, `w`, `W` |
+| `MOVE_DOWN` | `ArrowDown`, `s`, `S` |
+| `MOVE_LEFT` | `ArrowLeft`, `a`, `A` |
+| `MOVE_RIGHT` | `ArrowRight`, `d`, `D` |
+| `SHOOT` | ` `, `space` |
+| `POWER` | `q`, `Q` |
+| `SHIELD` | `e`, `E` |
+| `PAUSE` | `p`, `Escape`, `esc` |
+| `MENU_UP` | `ArrowUp`, `w`, `W` |
+| `MENU_DOWN` | `ArrowDown`, `s`, `S` |
+| `CONFIRM` | `Enter`, `return`, ` ` |
+| `EXIT` | `Escape`, `esc` |
+| `LEFT` | `ArrowLeft`, `a`, `A` |
+| `RIGHT` | `ArrowRight`, `d`, `D` |
+
+Utility functions:
+
+| Function | Input | Output | Description |
+|---|---|---|---|
+| `getAction(key)` | `key: string` | `string \| null` | Returns the mapped action for a key. |
+| `matches(key, action)` | `key: string`, `action: string` | `boolean` | Returns whether a key matches an action. |
+
+### 14.4 Core Gameplay
+
+#### `EventBus`
+
+`new EventBus()`
+
+Returns: `EventBus`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `on(event, callback)` | `event: string`, `callback(data)` | `() => void` | Subscribes to an event and returns an unsubscribe function. |
+| `off(event, callback)` | `event: string`, `callback: Function` | `void` | Removes a callback from an event. |
+| `emit(event, data)` | `event: string`, `data: any` | `void` | Dispatches an event to all listeners. |
+| `once(event, callback)` | `event: string`, `callback(data)` | `void` | Subscribes for one delivery only. |
+| `clear()` | none | `void` | Removes all listeners. |
+
+#### `GameEvents`
+
+| Event | Meaning |
+|---|---|
+| `BULLET_HIT_ENEMY` | Player bullet hit an enemy. |
+| `BULLET_HIT_BOSS` | Player bullet hit the boss. |
+| `BULLET_HIT_PLAYER` | Enemy bullet hit the player. |
+| `ENEMY_DESTROYED` | Enemy was destroyed. |
+| `BOSS_DESTROYED` | Boss was destroyed. |
+| `PLAYER_DAMAGED` | Player took damage. |
+| `PLAYER_DESTROYED` | Player was destroyed. |
+| `PLAYER_COLLISION_ENEMY` | Player collided with an enemy. |
+| `PLAYER_COLLISION_BOSS` | Player collided with the boss. |
+| `POWERUP_COLLECTED` | A power-up was collected. |
+| `WAVE_START` | A wave started. |
+| `WAVE_CLEAR` | A wave was cleared. |
+| `BOSS_SPAWN` | A boss spawned. |
+| `GAME_START` | Game loop started. |
+| `GAME_PAUSE` | Game paused. |
+| `GAME_RESUME` | Game resumed. |
+| `GAME_OVER` | Game over event. |
+| `VICTORY` | Victory event. |
+| `EXPLOSION` | Explosion effect requested. |
+| `PLAY_SOUND` | Sound effect requested. |
+
+#### `Entity`
+
+`new Entity(type, data = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `type` | string | required | Entity category. |
+| `data.x` / `data.y` | number | `0` | Position. |
+| `data.width` / `data.height` | number | `1` | Bounding box size. |
+| `data.art` | array | `[]` | ASCII art representation. |
+| `data.color` | string | `#ffffff` | Render color. |
+| `data.life` | number | `Infinity` | Remaining life ticks. |
+| `data.maxLife` | number | `life` | Maximum life for effect systems. |
+| `data.speed` | number | `1` | Base speed. |
+| `data.vx` / `data.vy` | number | `0` | Velocity components. |
+| `data.isEnemy` | boolean | omitted | Bullet-specific flag. |
+| `data.damage` | number | omitted | Bullet damage payload. |
+| `data.pierce` | boolean | omitted | Piercing flag. |
+| `data.char` | string | omitted | Single-character render symbol. |
+
+Returns: `Entity`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `getBounds()` | none | `{ left, right, top, bottom }` | Returns the entity AABB. |
+| `collidesWith(other)` | `other: Entity` | `boolean` | Tests overlap against another entity. |
+| `update(dt)` | `dt: number` | `void` | Advances position and life counters. |
+| `destroy()` | none | `void` | Marks the entity inactive. |
+
+#### `EntityType`
+
+| Value | Meaning |
+|---|---|
+| `PLAYER` | Player entity. |
+| `ENEMY` | Standard enemy entity. |
+| `BOSS` | Boss entity. |
+| `BULLET` | Bullet entity. |
+| `POWERUP` | Collectible power-up. |
+| `PARTICLE` | Visual particle. |
+
+#### `EntityManager`
+
+`new EntityManager(eventBus)`
+
+| Input | Type | Description |
+|---|---|---|
+| `eventBus` | `EventBus` | Optional shared bus; a new one is created if omitted. |
+
+Returns: `EntityManager`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `create(type, data)` | `type: string`, `data: object \| Entity` | `Entity` | Creates a new entity or stores an existing entity instance. |
+| `setPlayer(player)` | `player: Entity` | `void` | Sets the active player entity. |
+| `destroy(entity)` | `entity: Entity` | `void` | Destroys and removes an entity from all categories and tags. |
+| `addTag(entity, tag)` | `entity: Entity`, `tag: string` | `void` | Adds a tag to an entity index. |
+| `getByTag(tag)` | `tag: string` | `Entity[]` | Returns all tagged entities. |
+| `getEnemies()` | none | `Entity[]` | Returns enemy entities. |
+| `getEnemyBullets()` | none | `Entity[]` | Returns bullets whose `isEnemy` flag is true. |
+| `getPlayerBullets()` | none | `Entity[]` | Returns bullets whose `isEnemy` flag is false. |
+| `getPlayer()` | none | `Entity \| null` | Returns the player entity. |
+| `getBoss()` | none | `Entity \| null` | Returns the boss entity. |
+| `getPowerups()` | none | `Entity[]` | Returns all power-ups. |
+| `getParticles()` | none | `Entity[]` | Returns all particles. |
+| `getBullets()` | none | `Entity[]` | Returns all bullets. |
+| `update(dt)` | `dt: number` | `void` | Updates and prunes all entity categories. |
+| `clear()` | none | `void` | Clears everything except the player. |
+| `clearAll()` | none | `void` | Clears every category, including the player. |
+| `getStats()` | none | object | Returns counts for enemies, bullets, power-ups, particles, and booleans for boss/player presence. |
+
+#### `CollisionSystem`
+
+`new CollisionSystem()`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `checkCollision(a, b, margin)` | `a`, `b` with `x/y/width/height`, `margin?: number` | `boolean` | AABB overlap test. |
+| `pointInRect(px, py, rect)` | `px: number`, `py: number`, `rect: { x, y, width, height }` | `boolean` | Checks whether a point lies inside a rectangle. |
+| `circleCollision(a, b)` | `a`, `b` with `x/y/radius` | `boolean` | Circle overlap test. |
+| `checkPlayerBulletsVsEnemies(playerBullets, enemies, margin)` | arrays | `{ bullet, enemy }[]` | Returns bullet-enemy collisions. |
+| `checkPlayerBulletsVsBoss(playerBullets, boss, margin)` | arrays/object | `{ bullet, boss }[]` | Returns bullet-boss collisions. |
+| `checkEnemyBulletsVsPlayer(enemyBullets, player, margin)` | arrays/object | `{ bullet }[]` | Returns enemy bullet-player collisions. |
+| `checkEnemiesVsPlayer(enemies, player, margin)` | arrays/object | `{ enemy }[]` | Returns enemy-player collisions. |
+| `checkBossVsPlayer(boss, player, margin)` | object/object | `boolean` | Returns whether boss and player overlap. |
+| `checkPowerupsVsPlayer(powerups, player, margin)` | array/object | `{ powerup }[]` | Returns power-up pickups. |
+| `isOnScreen(entity, screenWidth, screenHeight, margin)` | entity + bounds | `boolean` | Returns whether an entity stays within the screen region. |
+
+#### `PhysicsWorld`
+
+`new PhysicsWorld(collision = new CollisionSystem())`
+
+| Input | Type | Description |
+|---|---|---|
+| `collision` | `CollisionSystem` | Collision helper used internally. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `add(groupName, entity, options)` | `groupName: string`, `entity: object`, `options.layer?`, `options.mask?` | `entity` | Registers an entity in a collision group. |
+| `remove(groupName, entity)` | `groupName: string`, `entity: object` | `void` | Removes an entity from a group and the body registry. |
+| `getGroup(groupName)` | `groupName: string` | array | Returns all entities in a group. |
+| `setLayerRule(layerA, layerB, enabled)` | `layerA: string`, `layerB: string`, `enabled?: boolean` | `void` | Enables or disables a pairwise collision rule. |
+| `canCollide(entityA, entityB)` | entities | `boolean` | Checks body masks and explicit layer rules. |
+| `testGroup(groupA, groupB, callback, margin)` | group names, callback | `void` | Tests each pair and invokes the callback for overlapping bodies. |
+| `queryRect(rect, options)` | `rect: object`, `options.groupName?`, `options.layer?`, `options.margin?` | array | Returns entities that overlap the query rectangle. |
+| `raycast(start, end, options)` | `start`, `end`, `options.steps?`, `options.groupName?`, `options.layer?`, `options.first?` | hit or hits | Returns the first hit by default, or all hits when `first === false`. |
+
+### 14.5 Rendering
+
+#### `Renderer`
+
+`new Renderer(width, height, stdout = process.stdout)`
+
+| Input | Type | Description |
+|---|---|---|
+| `width` | number | Render width. |
+| `height` | number | Render height. |
+| `stdout` | stream | Output stream for terminal presentation. |
+
+Returns: `Renderer`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `setCamera(camera)` | `camera: Camera2D \| null` | `void` | Sets the active camera. |
+| `getCamera()` | none | `Camera2D \| null` | Returns the active camera. |
+| `worldToScreen(x, y)` | `x: number`, `y: number` | `{ x, y }` | Projects world coordinates into screen space. |
+| `drawCell(...)` | `x, y, char, color?, bold?, layer?, bgColor?` | `void` | Draws one cell into the buffer. |
+| `drawString(...)` | `x, y, text, color?, bold?, layer?, bgColor?` | `void` | Draws a string with ANSI-aware width handling. |
+| `drawText(...)` | `x, y, lines, color?, bold?, layer?, bgColor?` | `void` | Draws multiple lines of text. |
+| `drawArt(...)` | `x, y, art, color?, bold?, layer?, bgColor?` | `void` | Draws ASCII art rows. |
+| `fillRect(...)` | `x, y, width, height, char?, color?, bold?, layer?, bgColor?` | `void` | Fills a rectangle. |
+| `clear()` | none | `void` | Clears the back buffer. |
+| `renderBackground(layer)` | `layer?: number` | `void` | Fills the screen with the starfield background. |
+| `scrollBackground()` | none | `void` | Advances the starfield scroll offset. |
+| `renderPlayer(player, shipArt, invincibleTimer, layer)` | player + art | `void` | Renders the ship and invincibility blinking. |
+| `renderShield(player, maxWidth, layer)` | player + width | `void` | Renders the shield outline. |
+| `renderEnemy(enemy, layer)` | enemy | `void` | Renders an enemy sprite. |
+| `renderBoss(boss, layer)` | boss | `void` | Renders a boss sprite. |
+| `renderBullet(bullet, layer)` | bullet | `void` | Renders one bullet or bullet block. |
+| `renderPowerup(powerup, layer)` | power-up | `void` | Renders a power-up with glow. |
+| `renderParticle(particle, layer)` | particle | `void` | Renders a particle with life-based color. |
+| `present()` | none | `void` | Clears the terminal and writes the current buffer. |
+| `getBuffer()` | none | `ScreenBuffer` | Returns the backing buffer. |
+| `toString()` | none | `string` | Returns the current ANSI-rendered frame. |
+
+`COLORS` is an ANSI style map, not a gameplay enum. Common keys include `reset`, `bold`, `dim`, foreground colors, background colors, and UI aliases such as `selected`, `inactive`, `border`, `title`, and `warning`.
+
+`Layer` enum:
+
+| Value | Meaning |
+|---|---|
+| `BACKGROUND` | Background layer. |
+| `PARTICLES` | Particle effects. |
+| `POWERUPS` | Power-up sprites. |
+| `ENEMIES` | Enemy sprites. |
+| `BOSS` | Boss sprites. |
+| `BULLETS` | Bullet sprites. |
+| `PLAYER` | Player ship. |
+| `SHIELD` | Shield overlay. |
+| `HUD` | HUD layer. |
+| `BANNER` | Banner overlay. |
+| `MODAL` | Modal overlay. |
+| `CURSOR` | Highest-priority cursor or selection layer. |
+
+Utility: `Layer.compare(a, b)` returns `a - b`.
+
+#### `Camera2D`
+
+`new Camera2D(options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `options.x` / `options.y` | number | `0` | Camera position. |
+| `options.viewportWidth` / `options.viewportHeight` | number \| null | `null` | Viewport size. |
+| `options.target` | object \| null | `null` | Follow target, assigned later through `follow()`. |
+| `options.deadZone` | object \| null | `null` | Optional dead-zone rectangle. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `setPosition(x, y)` | numbers | `this` | Sets the camera position. |
+| `setViewport(width, height)` | numbers | `this` | Sets the camera viewport. |
+| `follow(target, options)` | `target: object`, `options.deadZone?` | `this` | Makes the camera track a target. |
+| `unfollow()` | none | `this` | Clears the tracked target. |
+| `update()` | none | `void` | Repositions the camera based on the target and dead zone. |
+
+#### `ScreenBuffer`
+
+`new ScreenBuffer(width, height)`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `clear()` | none | `void` | Clears the full buffer. |
+| `setCell(x, y, char, color, bold, layer, bgColor)` | coordinates + style | `void` | Writes a single cell using layer priority. |
+| `getCell(x, y)` | coordinates | `Cell \| null` | Returns a cell or `null` if outside bounds. |
+| `fillRect(x, y, w, h, char, color, bold, layer, bgColor)` | rectangle | `void` | Fills an area with the same cell. |
+| `drawString(x, y, str, color, bold, layer, bgColor)` | string | `void` | Draws ANSI-aware strings and full-width characters. |
+| `drawText(x, y, lines, color, bold, layer, bgColor)` | string[] | `void` | Draws multiple lines. |
+| `drawArt(x, y, art, color, bold, layer, bgColor)` | string[] | `void` | Draws art line by line. |
+| `drawArtCentered(y, art, color, bold, layer)` | `y` + art | `void` | Centers art horizontally. |
+| `render()` | none | `string` | Returns the buffer as an ANSI string. |
+| `debugRender()` | none | `string` | Returns a layer debug view. |
+
+#### `Cell`
+
+`new Cell(char = ' ', color = null, bold = false, bgColor = null)`
+
+Methods:
+
+| Method | Output | Description |
+|---|---|---|
+| `clone()` | `Cell` | Returns a copy of the cell. |
+| `isEmpty()` | `boolean` | Returns whether the cell has no visible content or style. |
+
+Helpers exported from `rendering/ScreenBuffer`:
+
+| Function | Input | Output | Description |
+|---|---|---|---|
+| `isFullWidth(c)` | `c: string` | `boolean` | Returns whether a character should take two terminal cells. |
+| `strWidth(str)` | `str: string` | `number` | Returns displayed width, excluding ANSI sequences. |
+| `stripAnsi(str)` | `str: string` | `string` | Removes ANSI escape sequences. |
+| `padEndDisplay(str, width)` | `str: string`, `width: number` | `string` | Pads or truncates to a visual width. |
+| `getCenterPadding(str, width)` | `str: string`, `width: number` | `{ left, right }` | Returns left/right padding for centering. |
+| `center(str, width)` | `str: string`, `width: number` | `string` | Returns a centered string. |
+| `repeatChar(char, width)` | `char: string`, `width: number` | `string` | Repeats a character `width` times. |
+
+### 14.6 Scene Graph Nodes
+
+#### `Node2D`
+
+`new Node2D(options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `name` | string | `'Node2D'` | Node name. |
+| `x` / `y` | number | `0` | Local position. |
+| `rotation` | number | `0` | Rotation value, stored for gameplay use. |
+| `scaleX` / `scaleY` | number | `1` | Local scale. |
+| `anchorX` / `anchorY` | number | `0` | Anchor point. |
+| `visible` | boolean | `true` | Whether the node renders. |
+| `active` | boolean | `true` | Whether the node updates. |
+| `layer` | number | `0` | Render layer. |
+| `tags` | string[] | `[]` | Initial tag set. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `setPosition(x, y)` | numbers | `this` | Sets local position. |
+| `translate(dx, dy)` | numbers | `this` | Adds an offset to local position. |
+| `addChild(node)` | `Node2D` | `node` | Adds a child node. |
+| `removeChild(node)` | `Node2D` | `node` | Removes a child node. |
+| `getWorldPosition()` | none | `{ x, y }` | Returns world-space position by walking parent transforms. |
+| `addTag(tag)` | `string` | `this` | Adds a tag. |
+| `hasTag(tag)` | `string` | `boolean` | Checks whether the node owns a tag. |
+| `updateTree(dt, frameCount)` | numbers | `void` | Calls `update()` on the node and its children. |
+| `renderTree(renderer)` | `Renderer` | `void` | Calls `render()` on the node and its children. |
+| `update()` | hook | `void` | Override for per-node update. |
+| `render()` | hook | `void` | Override for per-node rendering. |
+
+#### `SpriteNode`
+
+`new SpriteNode(options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `art` | string[] | `['?']` | ASCII art to render. |
+| `color` | string | `null` | Render color. |
+| `bold` | boolean | `false` | Bold flag. |
+
+Output: `SpriteNode`
+
+Method:
+
+| Method | Output | Description |
+|---|---|---|
+| `render(renderer)` | `void` | Draws the sprite art using world position and node layer. |
+
+#### `TextNode`
+
+`new TextNode(options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `text` | string | `''` | Text content. |
+| `color` | string | `null` | Render color. |
+| `bold` | boolean | `false` | Bold flag. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `setText(text)` | `text: string` | `this` | Replaces the text content. |
+| `render(renderer)` | `Renderer` | `void` | Draws the string at the node position. |
+
+#### `TilemapNode`
+
+`new TilemapNode(options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `tiles` | array | `[]` | 2D tile matrix. |
+| `palette` | object | `{}` | String-to-cell palette map. |
+| `layer` | number | `0` | Default tile layer. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `setTiles(tiles)` | `tiles: array` | `this` | Replaces the tile grid. |
+| `setPalette(palette)` | `palette: object` | `this` | Replaces the palette. |
+| `render(renderer)` | `Renderer` | `void` | Draws the tile grid cell by cell. |
+
+### 14.7 Resources and Animation
+
+#### `ResourceManager`
+
+`new ResourceManager()`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `register(name, value, metadata)` | `name: string`, `value: any`, `metadata?: object` | `value` | Stores a resource in the cache. |
+| `has(name)` | `name: string` | `boolean` | Checks whether the resource exists. |
+| `get(name, fallback)` | `name: string`, `fallback?: any` | `any` | Returns a cached value or the fallback. |
+| `getMetadata(name)` | `name: string` | `object \| null` | Returns resource metadata. |
+| `unload(name)` | `name: string` | `void` | Removes one resource. |
+| `clear(prefix)` | `prefix?: string \| null` | `void` | Clears all resources or a prefix group. |
+| `loadTextSync(name, filePath, options)` | file path + options | `string` | Loads and registers text synchronously. |
+| `loadJsonSync(name, filePath, options)` | file path + options | `any` | Loads and registers JSON synchronously. |
+| `loadText(name, filePath, options)` | file path + options | `Promise<string>` | Loads and registers text asynchronously. |
+| `loadJson(name, filePath, options)` | file path + options | `Promise<any>` | Loads and registers JSON asynchronously. |
+
+Metadata created by the loader methods includes `type` (`text` or `json`) and `filePath`.
+
+#### `AnimationPlayer`
+
+`new AnimationPlayer()`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `tween(target, property, to, duration, options)` | target + property + destination | `Tween` | Creates and tracks a tween. |
+| `update(dt)` | `dt: number` | `void` | Updates active tweens and removes completed ones. |
+| `stopTweensFor(target, property)` | `target: object`, `property?: string \| null` | `void` | Stops tweens for a target, optionally limited to one property. |
+| `clear()` | none | `void` | Removes all tweens. |
+
+#### `Tween`
+
+`new Tween(target, property, to, duration, options = {})`
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `target` | object | required | Object whose property will be animated. |
+| `property` | string | required | Property name to animate. |
+| `to` | number | required | Final numeric value. |
+| `duration` | number | required | Animation duration in milliseconds. |
+| `options.from` | number | current target value | Starting value. |
+| `options.easing` | function \| string | `'linear'` | Easing function or easing name from `EASING`. |
+| `options.onComplete` | function | `null` | Completion callback. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `update(dt)` | `dt: number` | `boolean` | Advances the tween and returns `true` when finished. |
+
+`EASING` enum:
+
+| Value | Meaning |
+|---|---|
+| `linear` | Linear interpolation. |
+| `easeInQuad` | Accelerating quadratic curve. |
+| `easeOutQuad` | Decelerating quadratic curve. |
+| `easeInOutQuad` | Smooth in-out quadratic curve. |
+
+### 14.8 UI
+
+#### `HUD`
+
+`new HUD(width)`
+
+| Input | Type | Description |
+|---|---|---|
+| `width` | number | HUD text width. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `render(buffer, gameState)` | `buffer: ScreenBuffer`, `gameState: object` | `void` | Renders the boxed HUD into a buffer. |
+| `renderToString(gameState)` | `gameState: object` | `string` | Returns the boxed HUD as a string. |
+
+#### `Banner`
+
+`new Banner(width, height)`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `show(options)` | `title`, `lines`, `overlay?`, `duration?`, `onClose?`, `color?`, `closable?` | `void` | Opens a new banner. |
+| `close()` | none | `void` | Closes the current banner. |
+| `closeAll()` | none | `void` | Closes every banner in the queue. |
+| `isActive()` | none | `boolean` | Returns whether any banner is active. |
+| `isClosable()` | none | `boolean` | Returns whether the current banner can be closed manually. |
+| `isOverlay()` | none | `boolean` | Returns whether overlay mode is active. |
+| `render(buffer)` | `ScreenBuffer` | `void` | Draws the banner into a buffer. |
+| `renderToString()` | none | `string` | Returns the banner as a string. |
+| `showBossWarning(bossName, hp, defense, wave, options)` | boss data + options | `void` | Opens a boss warning banner. |
+| `showStory(title, lines, onClose)` | `title: string`, `lines: string[]`, `onClose?: Function` | `void` | Opens a story overlay banner. |
+
+#### `Modal`
+
+`new Modal(width, height)`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `show(options)` | `title`, `content`, `items`, `selectedIndex?`, `onSelect?`, `onClose?` | `void` | Opens a modal dialog. |
+| `close()` | none | `void` | Closes the active modal. |
+| `select(index)` | `index: number` | `void` | Sets the highlighted option index. |
+| `selectPrev()` | none | `void` | Moves selection up one item. |
+| `selectNext()` | none | `void` | Moves selection down one item. |
+| `confirm()` | none | `void` | Invokes the current modal selection callback. |
+| `getSelectedIndex()` | none | `number` | Returns the current selected index. |
+| `getSelectedItem()` | none | `string \| null` | Returns the selected item label. |
+| `isActive()` | none | `boolean` | Returns whether a modal is active. |
+| `render(buffer)` | `ScreenBuffer` | `void` | Draws the modal into a buffer. |
+| `renderToString()` | none | `string` | Returns the modal as a string. |
+| `showPause(onResume, onExit)` | callbacks | `void` | Opens the built-in pause menu. |
+| `showConfirm(message, onConfirm, onCancel)` | dialog content + callbacks | `void` | Opens a confirm/cancel dialog. |
+
+## 15. Development Notes
+
+- Keep constructors focused on static configuration.
+- Reset run-specific state in `onEnter()`.
+- Use `EntityManager` for ownership and cleanup, not ad-hoc arrays.
+- Use `ActionMap` or `KeyMapping` for game actions instead of raw key checks.
+- Prefer `Layer` values over hard-coded render priorities.
+- Use `EventBus` for gameplay events that cross systems or scenes.
 - Put real-time logic in `onUpdate`
 - Put fixed-step logic in `onFixedUpdate`
 - Put transient overlays and UI in `onRender`
 - Keep input mappings in `ActionMap` or `KeyMapping`
 
-## 14. Release Checklist
+## 16. Release Checklist
 
 Before publishing to GitHub and npm:
 
