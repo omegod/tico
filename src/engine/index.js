@@ -31,9 +31,30 @@ const {
   center,
   repeatChar
 } = require('./rendering/ScreenBuffer');
-const { HUD } = require('./ui/HUD');
-const { Banner } = require('./ui/Banner');
-const { Modal } = require('./ui/Modal');
+const {
+  BORDER_STYLES,
+  normalizeLines,
+  resolveBorder,
+  borderThickness,
+  measureText,
+  measureLines,
+  styleText,
+  alignText,
+  padBlock,
+  stackBlocks,
+  frameLines,
+  dividerLine,
+  frameMetrics,
+  resolvePosition
+} = require('./layout');
+const {
+  Widget,
+  TextWidget,
+  BarWidget,
+  MenuWidget,
+  PanelWidget,
+  DialogWidget
+} = require('./widgets');
 
 module.exports = {
   EngineApp,
@@ -76,7 +97,24 @@ module.exports = {
   getCenterPadding,
   center,
   repeatChar,
-  HUD,
-  Banner,
-  Modal
+  BORDER_STYLES,
+  normalizeLines,
+  resolveBorder,
+  borderThickness,
+  measureText,
+  measureLines,
+  styleText,
+  alignText,
+  padBlock,
+  stackBlocks,
+  frameLines,
+  dividerLine,
+  frameMetrics,
+  resolvePosition,
+  Widget,
+  TextWidget,
+  BarWidget,
+  MenuWidget,
+  PanelWidget,
+  DialogWidget
 };

@@ -56,7 +56,7 @@ const { EngineApp, Scene } = require('./src');
 - 场景树：`Scene`、`SceneManager`、`Node2D`、`SpriteNode`、`TextNode`、`TilemapNode`
 - 输入：`InputHandler`、`InputActionContext`、`ActionMap`、`KeyMapping`、`getAction`、`matches`
 - 渲染：`Renderer`、`COLORS`、`Layer`、`Camera2D`、`ScreenBuffer`、`Cell`
-- 内容与 UI：`ResourceManager`、`AnimationPlayer`、`Tween`、`EASING`、`HUD`、`Banner`、`Modal`
+- 内容、布局与组件：`ResourceManager`、`AnimationPlayer`、`Tween`、`EASING`、`BORDER_STYLES`、`measureText`、`measureLines`、`PanelWidget`、`DialogWidget`、`TextWidget`、`BarWidget`、`MenuWidget`
 
 ## 4. 运行时架构
 
@@ -1033,63 +1033,460 @@ my-game/
 | `easeOutQuad` | 二次减速曲线。 |
 | `easeInOutQuad` | 平滑的二次进出曲线。 |
 
-### 14.8 UI
+### 14.8 布局与组件
 
-#### `HUD`
+引擎现在在 widget 组合和终端绘制之间提供了一层轻量的 layout API。
 
-`new HUD(width)`
+这一层默认感知“视觉宽度”：
+
+- 宽度计算会忽略 ANSI 转义序列。
+- 全角字符，例如很多中文字符，会占用 2 列终端宽度。
+- 本节中所有 `width` 都指终端显示宽度，不是 JavaScript 字符串长度。
+
+引擎不再内置顶层 `ui` 包。像 HUD、横幅、弹窗流程这样的更高层覆盖层，应当由具体游戏基于 widgets 自行组合。
+
+#### `BORDER_STYLES`
+
+预设边框字符映射。
+
+边框样式枚举：
+
+| 值 | 含义 |
+|---|---|
+| `none` | 无边框。 |
+| `single` | 单线框。 |
+| `double` | 双线框。 |
+| `rounded` | 圆角边框。 |
+| `ascii` | 仅使用 `+`、`-`、`\|` 的 ASCII 边框。 |
+
+`BORDER_STYLES` 对象字段：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `topLeft` | string | 左上角字符。 |
+| `topRight` | string | 右上角字符。 |
+| `bottomLeft` | string | 左下角字符。 |
+| `bottomRight` | string | 右下角字符。 |
+| `horizontal` | string | 水平边框字符。 |
+| `vertical` | string | 垂直边框字符。 |
+| `leftDivider` | string | 分隔线左侧连接字符。 |
+| `rightDivider` | string | 分隔线右侧连接字符。 |
+
+对于 `none`，对应值为 `null`。
+
+#### `normalizeLines`
+
+`normalizeLines(lines)`
+
+输入：
 
 | 输入 | 类型 | 说明 |
 |---|---|---|
-| `width` | number | HUD 文本宽度。 |
+| `lines` | `string \| number \| boolean \| null \| undefined \| Array<any>` | 把任意输入归一化为字符串数组。 |
+
+输出：`string[]`
+
+行为说明：
+
+- `null` 和 `undefined` 会变成 `[]`。
+- 单个标量会变成单行数组。
+- 数组会逐项转成字符串。
+
+#### `resolveBorder`
+
+`resolveBorder(border)`
+
+输入：
+
+| 输入 | 类型 | 说明 |
+|---|---|---|
+| `border` | `boolean \| string \| { style?: BorderStyle } \| null \| undefined` | 边框配置。 |
+
+输出：`object | null`
+
+可接受值：
+
+| 值 | 结果 |
+|---|---|
+| `false`、`null`、`undefined`、`'none'` | 无边框，返回 `null`。 |
+| `true` | 使用 `single`。 |
+| `BorderStyle` 字符串 | 使用对应预设边框。 |
+| `{ style }` | 使用对象内指定的样式。 |
+
+未知字符串或未知 `style` 会回退到 `single`。
+
+#### `borderThickness`
+
+`borderThickness(border)`
+
+输入：与 `resolveBorder(border)` 相同
+
+输出：`number`
+
+返回值：
+
+| 值 | 含义 |
+|---|---|
+| `0` | 无边框。 |
+| `1` | 有边框，每一侧占 1 个单元。 |
+
+#### `measureText`
+
+`measureText(text)`
+
+输入：
+
+| 输入 | 类型 | 说明 |
+|---|---|---|
+| `text` | `any` | 先转成字符串再测量。 |
+
+输出：`number`
+
+返回单行文本的视觉宽度，会忽略 ANSI 转义序列。
+
+#### `measureLines`
+
+`measureLines(lines)`
+
+输入：
+
+| 输入 | 类型 | 说明 |
+|---|---|---|
+| `lines` | 与 `normalizeLines` 输入相同 | 要测量的文本块。 |
+
+输出：`{ width: number, height: number }`
+
+返回字段：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `width` | number | 归一化后所有行中的最大视觉宽度。 |
+| `height` | number | 归一化后的总行数。 |
+
+#### `styleText`
+
+`styleText(text, options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `text` | any | 必填 | 要附加 ANSI 样式的文本。 |
+| `options.color` | string | `''` | ANSI 颜色前缀。 |
+| `options.bold` | boolean | `false` | 是否附加 ANSI 粗体。 |
+
+输出：`string`
+
+只要应用了样式，就会在末尾补上 `\x1b[0m`。
+
+#### `alignText`
+
+`alignText(text, width, align = 'left')`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `text` | any | 必填 | 要对齐的文本。 |
+| `width` | number | 必填 | 目标视觉宽度。 |
+| `align` | `'left' \| 'center' \| 'right'` | `'left'` | 水平对齐方式。 |
+
+输出：`string`
+
+行为说明：
+
+- 当 `width <= 0` 时，返回 `''`。
+- 当文本宽于目标宽度时，会按视觉宽度安全地裁切或补齐。
+- 对齐计算基于终端显示宽度，不是字符串长度。
+
+#### `padBlock`
+
+`padBlock(lines, width, align = 'left')`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `lines` | 与 `normalizeLines` 输入相同 | 必填 | 文本块。 |
+| `width` | number | 必填 | 每行的目标宽度。 |
+| `align` | `'left' \| 'center' \| 'right'` | `'left'` | 应用于每一行的对齐方式。 |
+
+输出：`string[]`
+
+#### `stackBlocks`
+
+`stackBlocks(blocks, options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `blocks` | `Array<string \| string[]>` | 必填 | 要按垂直方向拼接的多个文本块。 |
+| `options.gap` | number | `0` | 块与块之间插入的空行数。 |
+
+输出：`string[]`
+
+#### `frameLines`
+
+`frameLines(lines, options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `lines` | 与 `normalizeLines` 输入相同 | 必填 | 内容文本块。 |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `single` 行为 | 边框配置。 |
+| `options.paddingX` | number | `0` | 左右内边距。 |
+| `options.paddingY` | number | `0` | 上下内边距。 |
+| `options.borderColor` | string | `''` | 边框字符使用的 ANSI 颜色前缀。 |
+| `options.align` | `'left' \| 'center' \| 'right'` | `'left'` | 内容行对齐方式。 |
+| `options.contentWidth` | number | 自动测量 | 在加 padding 和边框前的内容宽度。 |
+
+输出：`string[]`
+
+#### `dividerLine`
+
+`dividerLine(width, options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `width` | number | 必填 | 分隔线主体宽度。 |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `single` 行为 | 边框配置。 |
+| `options.borderColor` | string | `''` | 分隔线字符的 ANSI 颜色前缀。 |
+
+输出：`string`
+
+当 `border` 解析为 `null` 时，返回纯 `─` 组成的横线。
+
+#### `frameMetrics`
+
+`frameMetrics(contentWidth, contentHeight, options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `contentWidth` | number | 必填 | 内容区宽度。 |
+| `contentHeight` | number | 必填 | 内容区高度。 |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `single` 行为 | 边框配置。 |
+| `options.paddingX` | number | `0` | 水平 padding。 |
+| `options.paddingY` | number | `0` | 垂直 padding。 |
+
+输出：`{ width: number, height: number }`
+
+返回尺寸包含 padding 和边框厚度。
+
+#### `resolvePosition`
+
+`resolvePosition(containerWidth, containerHeight, boxWidth, boxHeight, options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `containerWidth` | number | 必填 | 外部容器宽度。 |
+| `containerHeight` | number | 必填 | 外部容器高度。 |
+| `boxWidth` | number | 必填 | box 宽度。 |
+| `boxHeight` | number | 必填 | box 高度。 |
+| `options.alignX` | `'left' \| 'center' \| 'right'` | `'center'` | 水平锚点。 |
+| `options.alignY` | `'top' \| 'center' \| 'bottom'` | `'center'` | 垂直锚点。 |
+| `options.offsetX` | number | `0` | 锚点计算后的水平偏移。 |
+| `options.offsetY` | number | `0` | 锚点计算后的垂直偏移。 |
+
+输出：`{ x: number, y: number }`
+
+返回坐标会被钳制到不小于 `0`。
+
+#### `Widget`
+
+所有 widgets 的基类。
+
+`new Widget(options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `options` | object | `{}` | 原始组件配置，会原样保存在 `this.options`。 |
 
 方法：
 
 | 方法 | 输入 | 输出 | 说明 |
 |---|---|---|---|
-| `render(buffer, gameState)` | `buffer: ScreenBuffer`，`gameState: object` | `void` | 将 HUD 画到缓冲区里。 |
-| `renderToString(gameState)` | `gameState: object` | `string` | 返回带边框的 HUD 字符串。 |
+| `measure()` | 无 | `{ width, height }` | 返回组件尺寸。基础实现返回 `{ width: 0, height: 0 }`。 |
+| `render()` | 无 | `string[]` | 返回渲染后的文本行。基础实现返回 `[]`。 |
 
-#### `Banner`
+#### `TextWidget`
 
-`new Banner(width, height)`
+`new TextWidget(options = {})`
 
-方法：
+输入：
 
-| 方法 | 输入 | 输出 | 说明 |
-|---|---|---|---|
-| `show(options)` | `title`、`lines`、`overlay?`、`duration?`、`onClose?`、`color?`、`closable?` | `void` | 打开一个横幅。 |
-| `close()` | 无 | `void` | 关闭当前横幅。 |
-| `closeAll()` | 无 | `void` | 关闭队列里的所有横幅。 |
-| `isActive()` | 无 | `boolean` | 判断是否存在活动横幅。 |
-| `isClosable()` | 无 | `boolean` | 判断当前横幅是否可手动关闭。 |
-| `isOverlay()` | 无 | `boolean` | 判断是否处于覆盖模式。 |
-| `render(buffer)` | `ScreenBuffer` | `void` | 将横幅绘制到缓冲区。 |
-| `renderToString()` | 无 | `string` | 返回横幅字符串。 |
-| `showBossWarning(bossName, hp, defense, wave, options)` | Boss 数据 + 选项 | `void` | 打开 Boss 警告横幅。 |
-| `showStory(title, lines, onClose)` | `title: string`，`lines: string[]`，`onClose?: Function` | `void` | 打开剧情覆盖横幅。 |
-
-#### `Modal`
-
-`new Modal(width, height)`
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `options.text` | string | `''` | 单段文本；如果传了 `lines` 则忽略。 |
+| `options.lines` | `string \| string[]` | `options.text` | 显式指定文本行。 |
+| `options.align` | `'left' \| 'center' \| 'right'` | `'left'` | 在渲染宽度内的对齐方式。 |
+| `options.color` | string | `null` | ANSI 颜色前缀。 |
+| `options.bold` | boolean | `false` | 是否启用 ANSI 粗体。 |
 
 方法：
 
 | 方法 | 输入 | 输出 | 说明 |
 |---|---|---|---|
-| `show(options)` | `title`、`content`、`items`、`selectedIndex?`、`onSelect?`、`onClose?` | `void` | 打开弹窗。 |
-| `close()` | 无 | `void` | 关闭当前弹窗。 |
-| `select(index)` | `index: number` | `void` | 设置高亮选项索引。 |
-| `selectPrev()` | 无 | `void` | 上移一个选项。 |
-| `selectNext()` | 无 | `void` | 下移一个选项。 |
-| `confirm()` | 无 | `void` | 触发当前选项回调。 |
-| `getSelectedIndex()` | 无 | `number` | 返回当前选中索引。 |
-| `getSelectedItem()` | 无 | `string \| null` | 返回当前选中项文本。 |
-| `isActive()` | 无 | `boolean` | 判断弹窗是否活动。 |
-| `render(buffer)` | `ScreenBuffer` | `void` | 将弹窗绘制到缓冲区。 |
-| `renderToString()` | 无 | `string` | 返回弹窗字符串。 |
-| `showPause(onResume, onExit)` | 回调函数 | `void` | 打开内置暂停菜单。 |
-| `showConfirm(message, onConfirm, onCancel)` | 对话内容 + 回调 | `void` | 打开确认 / 取消对话框。 |
+| `measure()` | 无 | `{ width, height }` | 测量归一化后的文本块大小。 |
+| `render(width)` | `width?: number \| null` | `string[]` | 渲染对齐后的文本行；未传时使用自然宽度。 |
+
+#### `BarWidget`
+
+`new BarWidget(options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `options.width` | number | `10` | 进度条视觉宽度，最小为 `1`。 |
+| `options.value` | number | 未设置 | 直接传入 `[0, 1]` 的归一化比值。 |
+| `options.current` | number | 未设置 | 当未提供 `value` 时使用的当前值。 |
+| `options.max` | number | 未设置 | 与 `current` 配合使用的最大值。 |
+| `options.color` | string | `null` | 已填充部分的 ANSI 颜色。 |
+| `options.emptyColor` | string | `null` | 未填充部分的 ANSI 颜色。 |
+| `options.bold` | boolean | `false` | 是否启用 ANSI 粗体。 |
+| `options.filledChar` | string | `'█'` | 已填充单元使用的字符。 |
+| `options.emptyChar` | string | `'░'` | 未填充单元使用的字符。 |
+
+方法：
+
+| 方法 | 输入 | 输出 | 说明 |
+|---|---|---|---|
+| `measure()` | 无 | `{ width, height }` | 返回 `{ width: options.width, height: 1 }`。 |
+| `render()` | 无 | `string[]` | 返回一行样式化后的进度条。 |
+
+比值规则：
+
+- `value` 优先级高于 `current` / `max`。
+- 比值会被钳制到 `[0, 1]`。
+- `current` / `max` 无效时会渲染为空条。
+
+#### `MenuWidget`
+
+`new MenuWidget(options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `options.items` | `string \| string[]` | `[]` | 菜单项文本。 |
+| `options.selectedIndex` | number | `0` | 当前选中项索引。 |
+| `options.selectedPrefix` | string | `' ▸ '` | 选中项前缀。 |
+| `options.unselectedPrefix` | string | `'   '` | 未选中项前缀。 |
+| `options.align` | `'left' \| 'center' \| 'right'` | `'left'` | 菜单项行对齐方式。 |
+| `options.itemColor` | string | `null` | 未选中项 ANSI 颜色。 |
+| `options.selectedColor` | string | `itemColor` | 选中项 ANSI 颜色。 |
+| `options.selectedBold` | boolean | `true` | 选中项是否加粗。 |
+
+方法：
+
+| 方法 | 输入 | 输出 | 说明 |
+|---|---|---|---|
+| `measure()` | 无 | `{ width, height }` | 测量带前缀后的最大项宽度和总行数。 |
+| `render(width)` | `width?: number \| null` | `string[]` | 按行渲染菜单项。 |
+
+说明：
+
+- `selectedIndex` 只会被钳制到不小于 `0`，不会自动限制到当前菜单长度。
+- 只有索引正好命中的一项会应用选中样式。
+
+#### `PanelWidget`
+
+带边框、标题、padding、子块堆叠能力的容器组件。
+
+`new PanelWidget(options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `options.width` | number | `null` | 期望的内部内容宽度。 |
+| `options.minWidth` | number | `0` | 最小内部宽度。 |
+| `options.maxWidth` | number | `null` | 最大内部宽度。 |
+| `options.paddingX` | number | `1` | 边框内左右 padding。 |
+| `options.paddingY` | number | `0` | 边框内上下 padding。 |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `'single'` | 边框配置。 |
+| `options.borderColor` | string | `null` | 边框字符 ANSI 颜色。 |
+| `options.title` | string | `null` | 可选标题。 |
+| `options.titleAlign` | `'left' \| 'center' \| 'right'` | `'center'` | 标题对齐方式。 |
+| `options.titleColor` | string | `null` | 标题 ANSI 颜色。 |
+| `options.titleBold` | boolean | `true` | 标题是否加粗。 |
+| `options.titleDivider` | boolean | `true` | 标题下方是否绘制分隔线。 |
+| `options.gap` | number | `0` | 子块之间插入的空行数。 |
+| `options.align` | `'left' \| 'center' \| 'right'` | `'left'` | 非 widget 子块以及最终内容行的对齐方式。 |
+| `options.alignX` | `'left' \| 'center' \| 'right'` | `'center'` | 放置时的水平锚点。 |
+| `options.alignY` | `'top' \| 'center' \| 'bottom'` | `'center'` | 放置时的垂直锚点。 |
+| `options.offsetX` | number | `0` | 放置时的水平偏移。 |
+| `options.offsetY` | number | `0` | 放置时的垂直偏移。 |
+| `options.children` | `Array<Widget \| string \| string[]>` | `[]` | 从上到下堆叠的子内容块。 |
+
+方法：
+
+| 方法 | 输入 | 输出 | 说明 |
+|---|---|---|---|
+| `measure(availableWidth)` | `availableWidth?: number \| null` | `{ width, height }` | 测量包含边框后的整体尺寸。 |
+| `render(options)` | `options?: { availableWidth?: number \| null }` | `string[]` | 返回渲染后的 panel 文本行。 |
+| `resolvePlacement(containerWidth, containerHeight, availableWidth)` | 数字 | `{ x, y }` | 根据 panel 实际尺寸计算锚点放置位置。 |
+
+尺寸规则：
+
+- `width`、`minWidth`、`maxWidth` 作用的是“内部内容宽度”，不是最终带边框后的总宽度。
+- 传入 `availableWidth` 时，会先扣除边框和 padding 再约束内部宽度。
+- 子 widget 会收到解析后的内部宽度，调用形式是 `child.render(innerWidth)`。
+
+#### `DialogWidget`
+
+用于常见对话框结构的快捷组合。内部会构造一个 `PanelWidget`，并按需加入一个 `TextWidget` 内容块和一个 `MenuWidget` 菜单块。
+
+`new DialogWidget(options = {})`
+
+输入：
+
+| 输入 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `options.width` | number | `null` | 传给内部 `PanelWidget`。 |
+| `options.minWidth` | number | `24` | 最小内部宽度。 |
+| `options.maxWidth` | number | `null` | 最大内部宽度。 |
+| `options.paddingX` | number | `1` | 左右内边距。 |
+| `options.paddingY` | number | `0` | 上下内边距。 |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `'single'` | 边框配置。 |
+| `options.borderColor` | string | `null` | 边框 ANSI 颜色。 |
+| `options.title` | string | `''` | 对话框标题。 |
+| `options.titleAlign` | `'left' \| 'center' \| 'right'` | `'center'` | 标题对齐方式。 |
+| `options.alignX` | `'left' \| 'center' \| 'right'` | `'center'` | 放置时的水平锚点。 |
+| `options.alignY` | `'top' \| 'center' \| 'bottom'` | `'center'` | 放置时的垂直锚点。 |
+| `options.offsetX` | number | `0` | 放置时的水平偏移。 |
+| `options.offsetY` | number | `0` | 放置时的垂直偏移。 |
+| `options.gap` | number | `1` | 内容块和菜单块之间的空行数。 |
+| `options.content` | `string \| string[]` | `[]` | 正文文本块。 |
+| `options.contentAlign` | `'left' \| 'center' \| 'right'` | `'left'` | 正文对齐方式。 |
+| `options.contentColor` | string | `null` | 正文 ANSI 颜色。 |
+| `options.contentBold` | boolean | `false` | 正文是否加粗。 |
+| `options.items` | `string \| string[]` | `[]` | 菜单项。 |
+| `options.selectedIndex` | number | `0` | 当前选中菜单索引。 |
+| `options.selectedPrefix` | string | 菜单默认值 | 选中项前缀。 |
+| `options.unselectedPrefix` | string | 菜单默认值 | 未选中项前缀。 |
+| `options.menuAlign` | `'left' \| 'center' \| 'right'` | `'left'` | 菜单项对齐方式。 |
+| `options.itemColor` | string | `null` | 未选中菜单项 ANSI 颜色。 |
+| `options.selectedColor` | string | `null` | 选中菜单项 ANSI 颜色。 |
+| `options.selectedBold` | boolean | `true` 行为 | 选中菜单项是否加粗。 |
+
+方法：
+
+| 方法 | 输入 | 输出 | 说明 |
+|---|---|---|---|
+| `measure(availableWidth)` | `availableWidth?: number \| null` | `{ width, height }` | 转发给内部 panel 的测量逻辑。 |
+| `render(options)` | `options?: { availableWidth?: number \| null }` | `string[]` | 转发给内部 panel 的渲染逻辑。 |
+| `resolvePlacement(containerWidth, containerHeight, availableWidth)` | 数字 | `{ x, y }` | 转发给内部 panel 的放置逻辑。 |
 
 ## 15. 开发建议
 

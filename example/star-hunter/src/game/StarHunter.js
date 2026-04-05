@@ -14,9 +14,9 @@ const { Renderer, COLORS } = require('../../../../src/engine/rendering/Renderer'
 const { Layer } = require('../../../../src/engine/rendering/Layer');
 const { InputHandler } = require('../../../../src/engine/input/InputHandler');
 const { KeyMapping, getAction } = require('../../../../src/engine/input/KeyMapping');
-const { HUD } = require('../../../../src/engine/ui/HUD');
-const { Banner } = require('../../../../src/engine/ui/Banner');
-const { Modal } = require('../../../../src/engine/ui/Modal');
+const { HUD } = require('./ui/HUD');
+const { Banner } = require('./ui/Banner');
+const { Modal } = require('./ui/Modal');
 const { strWidth, stripAnsi, padEndDisplay, center, repeatChar } = require('../../../../src/engine/rendering/ScreenBuffer');
 
 // 游戏实体
@@ -56,7 +56,7 @@ class StarHunter {
     this.renderer = runtime ? runtime.renderer : new Renderer(GAME_WIDTH, GAME_HEIGHT, this.stdout);
     this.input = runtime ? runtime.input : new InputHandler();
     this.hud = new HUD(GAME_WIDTH);
-    this.banner = new Banner(GAME_WIDTH, GAME_HEIGHT);
+    this.banner = new Banner(GAME_WIDTH, GAME_HEIGHT, { scheduler: this.engine.time });
     this.modal = new Modal(GAME_WIDTH, GAME_HEIGHT);
 
     // 系统
@@ -415,19 +415,7 @@ class StarHunter {
     out += this.renderer.toString();
 
     // 添加HUD
-    out += this.hud.renderToString({
-      score: this.score,
-      wave: this.wave,
-      waveEnemiesKilled: this.enemySpawnSystem.waveEnemiesKilled,
-      waveTotalEnemies: this.enemySpawnSystem.waveTotalEnemies,
-      lives: this.lives,
-      powerCount: this.powerCount,
-      missileCapacity: this.missileCapacity,
-      missileReload: this._getMissileReloadStatus(),
-      invincibleTimer: this.invincibleTimer,
-      player: player,
-      boss: this.entities.getBoss()
-    });
+    out += this.hud.renderToString(this._buildHudDefinition(player, this.entities.getBoss()));
 
     this.stdout.write(out);
   }
@@ -581,10 +569,12 @@ class StarHunter {
       const bossConfig = require('./configs/bosses').BOSSES[this.wave - 1];
       if (bossConfig) {
         // 显示Boss警告横幅，横幅消失后再生成Boss
-        this.banner.showBossWarning(bossConfig.name, bossConfig.hp, bossConfig.defense, this.wave, {
-          overlay: false,
+        this.banner.show({
+          title: 'BOSS WARNING',
+          lines: this._buildBossWarningLines(bossConfig.name, bossConfig.hp, bossConfig.defense, this.wave, bossConfig.subtitle || ''),
           duration: 3000,
-          subtitle: bossConfig.subtitle || '',
+          color: COLORS.orange,
+          closable: false,
           onClose: () => {
             // 横幅消失后生成Boss
             this.enemySpawnSystem.bossSpawned = true;
@@ -681,14 +671,33 @@ class StarHunter {
     if (key === 'p' || key === 'Escape') {
       if (this.engine.isPaused()) return;
       this.engine.pause();
-      this.modal.showPause(
-        () => this.engine.resume(),
-        () => {
+      this.modal.show({
+        title: '暂停',
+        items: ['继续游戏', '返回菜单', '退出游戏'],
+        selectedIndex: 0,
+        onSelect: (index) => {
+          if (index === 0) {
+            this.engine.resume();
+            return;
+          }
+
+          if (index === 1) {
+            this.engine.resume();
+            this.engine.setState(GAME_STATE.MENU);
+            this.selectedIndex = 0;
+            return;
+          }
+
+          if (this.runtimeOwned) {
+            this.cleanup();
+            process.exit(0);
+          }
+
           this.engine.resume();
           this.engine.setState(GAME_STATE.MENU);
           this.selectedIndex = 0;
         }
-      );
+      });
       return;
     }
 
@@ -803,9 +812,15 @@ class StarHunter {
     const story = getStoryByWave(wave);
     if (story) {
       this.engine.pause();
-      this.banner.showStory(story.title, story.lines, () => {
+      this.banner.show({
+        title: story.title,
+        lines: story.lines,
+        footer: '按 Enter 继续',
+        overlay: true,
+        onClose: () => {
         this.engine.resume();
         if (onComplete) onComplete();
+        }
       });
     } else {
       if (onComplete) onComplete();
@@ -954,9 +969,74 @@ class StarHunter {
    */
   _onBossSpawn(boss) {
     if (this._showingBossWarning) return;
-    this.banner.showBossWarning(boss.name, boss.hp, boss.defense, this.wave, {
-      subtitle: boss.subtitle || ''
+    this.banner.show({
+      title: 'BOSS WARNING',
+      lines: this._buildBossWarningLines(boss.name, boss.hp, boss.defense, this.wave, boss.subtitle || ''),
+      duration: 3000,
+      color: COLORS.orange,
+      closable: false
     });
+  }
+
+  _buildBossWarningLines(name, hp, defense, wave, subtitle = '') {
+    const lines = [
+      `Wave ${wave}: ${name}`,
+      `HP: ${hp} | Defense: ${Math.floor(defense * 100)}%`
+    ];
+    if (subtitle) {
+      lines.push(subtitle);
+    }
+    return lines;
+  }
+
+  _buildHudDefinition(player, boss) {
+    const hpColor = this._getRatioColor(player ? player.hp : 0, player ? player.maxHp : 100);
+    const shieldColor = player && player.shieldActive
+      ? this._getRatioColor(player.shield, 30, [COLORS.dim, COLORS.brightBlue, COLORS.blue])
+      : COLORS.dim;
+    const missileReload = this._getMissileReloadStatus();
+    const rows = [
+      {
+        left: [
+          { icon: '★', iconColor: COLORS.yellow, bold: true, value: this.score.toString().padStart(10, '0'), valueColor: COLORS.white },
+          { label: 'WAVE', value: `${this.wave}/6`, labelColor: COLORS.magenta, valueColor: COLORS.white },
+          { label: 'ENEMIES', value: `${this.enemySpawnSystem.waveEnemiesKilled}/${this.enemySpawnSystem.waveTotalEnemies}`, labelColor: COLORS.cyan, valueColor: COLORS.white }
+        ],
+        right: boss ? [
+          { label: 'BOSS', value: boss.name, labelColor: COLORS.red, valueColor: COLORS.white },
+          { bar: { current: boss.hp, max: boss.maxHp, width: 10, color: this._getRatioColor(boss.hp, boss.maxHp) } },
+          { text: `${Math.floor((boss.hp / boss.maxHp) * 100)}%`, color: COLORS.red }
+        ] : []
+      },
+      {
+        left: [
+          { label: 'HP', labelColor: hpColor, bar: { current: player ? player.hp : 0, max: player ? player.maxHp : 100, width: 10, color: hpColor }, value: `${player ? Math.max(0, player.hp) : 0}/${player ? player.maxHp : 100}`, valueColor: COLORS.white },
+          { label: 'SHIELD', labelColor: shieldColor, bar: { current: player ? player.shield : 0, max: 30, width: 6, color: shieldColor }, value: `${player ? player.shield : 0}/30`, valueColor: COLORS.white },
+          { label: 'MISSILES', value: `${this.powerCount}/${this.missileCapacity}`, labelColor: COLORS.yellow, valueColor: COLORS.white },
+          missileReload ? { text: `↻${missileReload.percent}%`, color: missileReload.full ? COLORS.green : COLORS.yellow } : null
+        ],
+        right: [
+          { label: 'LIVES', value: this.lives, labelColor: COLORS.red, valueColor: COLORS.white },
+          this.invincibleTimer > 0 ? { label: 'INV', value: `${Math.ceil(this.invincibleTimer / 20)}s`, labelColor: COLORS.yellow, valueColor: COLORS.white } : null
+        ]
+      }
+    ];
+
+    return {
+      title: { text: 'STATUS', color: COLORS.white, bold: true },
+      rows
+    };
+  }
+
+  _getRatioColor(current, max, palette = [COLORS.red, COLORS.yellow, COLORS.green]) {
+    if (!max || max <= 0) {
+      return palette[0];
+    }
+
+    const ratio = current / max;
+    if (ratio > 0.5) return palette[2];
+    if (ratio > 0.25) return palette[1];
+    return palette[0];
   }
 
   /**

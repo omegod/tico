@@ -11,6 +11,9 @@ function run() {
   assert.ok(engine.Renderer);
   assert.ok(engine.ResourceManager);
   assert.ok(engine.AnimationPlayer);
+  assert.ok(engine.PanelWidget);
+  assert.ok(engine.DialogWidget);
+  assert.ok(engine.measureText);
 
   console.log('✓ Engine Exports tests passed');
   return true;

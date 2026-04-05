@@ -56,7 +56,7 @@ The package root re-exports the engine surface from `src/engine/index.js`.
 - Scene graph: `Scene`, `SceneManager`, `Node2D`, `SpriteNode`, `TextNode`, `TilemapNode`
 - Input: `InputHandler`, `InputActionContext`, `ActionMap`, `KeyMapping`, `getAction`, `matches`
 - Rendering: `Renderer`, `COLORS`, `Layer`, `Camera2D`, `ScreenBuffer`, `Cell`
-- Content and UI: `ResourceManager`, `AnimationPlayer`, `Tween`, `EASING`, `HUD`, `Banner`, `Modal`
+- Content, layout, and widgets: `ResourceManager`, `AnimationPlayer`, `Tween`, `EASING`, `BORDER_STYLES`, `measureText`, `measureLines`, `PanelWidget`, `DialogWidget`, `TextWidget`, `BarWidget`, `MenuWidget`
 
 ## 4. Runtime Architecture
 
@@ -1033,63 +1033,460 @@ Methods:
 | `easeOutQuad` | Decelerating quadratic curve. |
 | `easeInOutQuad` | Smooth in-out quadratic curve. |
 
-### 14.8 UI
+### 14.8 Layout and Widgets
 
-#### `HUD`
+The engine exposes a lightweight layout layer between widget composition and terminal drawing.
 
-`new HUD(width)`
+This layer is display-width aware:
+
+- Width calculations ignore ANSI escape sequences.
+- Full-width characters such as many CJK characters occupy 2 columns.
+- All `width` values in this section refer to terminal display width, not JavaScript string length.
+
+The engine no longer ships a top-level `ui` package. Higher-level overlays such as HUDs, banners, and modal flows are expected to be built in your game code by composing widgets.
+
+#### `BORDER_STYLES`
+
+Preset border character maps.
+
+Border style enum:
+
+| Value | Meaning |
+|---|---|
+| `none` | No border. |
+| `single` | Single-line box drawing border. |
+| `double` | Double-line box drawing border. |
+| `rounded` | Rounded-corner border using box drawing characters. |
+| `ascii` | ASCII-only border using `+`, `-`, and `\|`. |
+
+`BORDER_STYLES` object keys:
+
+| Field | Type | Description |
+|---|---|---|
+| `topLeft` | string | Top-left corner character. |
+| `topRight` | string | Top-right corner character. |
+| `bottomLeft` | string | Bottom-left corner character. |
+| `bottomRight` | string | Bottom-right corner character. |
+| `horizontal` | string | Horizontal border character. |
+| `vertical` | string | Vertical border character. |
+| `leftDivider` | string | Left intersection used for divider rows. |
+| `rightDivider` | string | Right intersection used for divider rows. |
+
+For `none`, the value is `null`.
+
+#### `normalizeLines`
+
+`normalizeLines(lines)`
+
+Input:
 
 | Input | Type | Description |
 |---|---|---|
-| `width` | number | HUD text width. |
+| `lines` | `string \| number \| boolean \| null \| undefined \| Array<any>` | Normalizes arbitrary content into a string array. |
+
+Output: `string[]`
+
+Behavior:
+
+- `null` and `undefined` become `[]`.
+- A scalar becomes a one-line array.
+- Arrays are converted item-by-item to strings.
+
+#### `resolveBorder`
+
+`resolveBorder(border)`
+
+Input:
+
+| Input | Type | Description |
+|---|---|---|
+| `border` | `boolean \| string \| { style?: BorderStyle } \| null \| undefined` | Border configuration. |
+
+Output: `object | null`
+
+Accepted border values:
+
+| Value | Result |
+|---|---|
+| `false`, `null`, `undefined`, `'none'` | No border, returns `null`. |
+| `true` | Uses `single`. |
+| `BorderStyle` string | Uses that preset style. |
+| `{ style }` | Uses the style in the object. |
+
+Unknown string/object style values fall back to `single`.
+
+#### `borderThickness`
+
+`borderThickness(border)`
+
+Input: same as `resolveBorder(border)`
+
+Output: `number`
+
+Return values:
+
+| Value | Meaning |
+|---|---|
+| `0` | No border. |
+| `1` | Border exists and occupies one cell on each side. |
+
+#### `measureText`
+
+`measureText(text)`
+
+Input:
+
+| Input | Type | Description |
+|---|---|---|
+| `text` | `any` | Value converted to string before measuring. |
+
+Output: `number`
+
+Returns the display width of a single line after stripping ANSI sequences.
+
+#### `measureLines`
+
+`measureLines(lines)`
+
+Input:
+
+| Input | Type | Description |
+|---|---|---|
+| `lines` | Same as `normalizeLines` input | Content block to measure. |
+
+Output: `{ width: number, height: number }`
+
+Returned fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `width` | number | Maximum display width among all normalized lines. |
+| `height` | number | Number of normalized lines. |
+
+#### `styleText`
+
+`styleText(text, options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `text` | any | required | Text to style. |
+| `options.color` | string | `''` | ANSI color prefix. |
+| `options.bold` | boolean | `false` | Whether to prepend ANSI bold. |
+
+Output: `string`
+
+Returns a styled string and appends `\x1b[0m` when any style is applied.
+
+#### `alignText`
+
+`alignText(text, width, align = 'left')`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `text` | any | required | Text to align. |
+| `width` | number | required | Target display width. |
+| `align` | `'left' \| 'center' \| 'right'` | `'left'` | Horizontal text alignment. |
+
+Output: `string`
+
+Behavior:
+
+- If `width <= 0`, returns `''`.
+- If content is wider than `width`, the result is clipped/padded using display-width-safe logic.
+- Alignment is calculated using terminal display width.
+
+#### `padBlock`
+
+`padBlock(lines, width, align = 'left')`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `lines` | Same as `normalizeLines` input | required | Content block. |
+| `width` | number | required | Target width for each line. |
+| `align` | `'left' \| 'center' \| 'right'` | `'left'` | Alignment applied to every line. |
+
+Output: `string[]`
+
+#### `stackBlocks`
+
+`stackBlocks(blocks, options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `blocks` | `Array<string \| string[]>` | required | Multiple text blocks to stack vertically. |
+| `options.gap` | number | `0` | Number of empty lines inserted between blocks. |
+
+Output: `string[]`
+
+#### `frameLines`
+
+`frameLines(lines, options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `lines` | Same as `normalizeLines` input | required | Content block. |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `'single'` behavior | Border configuration. |
+| `options.paddingX` | number | `0` | Left and right inner padding. |
+| `options.paddingY` | number | `0` | Top and bottom inner padding. |
+| `options.borderColor` | string | `''` | ANSI prefix applied to border glyphs. |
+| `options.align` | `'left' \| 'center' \| 'right'` | `'left'` | Alignment for content lines. |
+| `options.contentWidth` | number | measured width | Explicit content width before padding and border. |
+
+Output: `string[]`
+
+#### `dividerLine`
+
+`dividerLine(width, options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `width` | number | required | Divider body width. |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `'single'` behavior | Border configuration. |
+| `options.borderColor` | string | `''` | ANSI prefix for divider glyphs. |
+
+Output: `string`
+
+When `border` resolves to `null`, returns a plain `─` line.
+
+#### `frameMetrics`
+
+`frameMetrics(contentWidth, contentHeight, options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `contentWidth` | number | required | Inner content width. |
+| `contentHeight` | number | required | Inner content height. |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `'single'` behavior | Border configuration. |
+| `options.paddingX` | number | `0` | Horizontal padding. |
+| `options.paddingY` | number | `0` | Vertical padding. |
+
+Output: `{ width: number, height: number }`
+
+Returned size includes padding and border thickness.
+
+#### `resolvePosition`
+
+`resolvePosition(containerWidth, containerHeight, boxWidth, boxHeight, options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `containerWidth` | number | required | Outer container width. |
+| `containerHeight` | number | required | Outer container height. |
+| `boxWidth` | number | required | Box width. |
+| `boxHeight` | number | required | Box height. |
+| `options.alignX` | `'left' \| 'center' \| 'right'` | `'center'` | Horizontal anchor. |
+| `options.alignY` | `'top' \| 'center' \| 'bottom'` | `'center'` | Vertical anchor. |
+| `options.offsetX` | number | `0` | Additional horizontal offset after anchoring. |
+| `options.offsetY` | number | `0` | Additional vertical offset after anchoring. |
+
+Output: `{ x: number, y: number }`
+
+Returned coordinates are clamped to `>= 0`.
+
+#### `Widget`
+
+Base class for widgets.
+
+`new Widget(options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `options` | object | `{}` | Raw widget configuration, stored as-is on `this.options`. |
 
 Methods:
 
 | Method | Input | Output | Description |
 |---|---|---|---|
-| `render(buffer, gameState)` | `buffer: ScreenBuffer`, `gameState: object` | `void` | Renders the boxed HUD into a buffer. |
-| `renderToString(gameState)` | `gameState: object` | `string` | Returns the boxed HUD as a string. |
+| `measure()` | none | `{ width, height }` | Returns widget size. Base implementation returns `{ width: 0, height: 0 }`. |
+| `render()` | none | `string[]` | Returns rendered lines. Base implementation returns `[]`. |
 
-#### `Banner`
+#### `TextWidget`
 
-`new Banner(width, height)`
+`new TextWidget(options = {})`
 
-Methods:
+Input:
 
-| Method | Input | Output | Description |
-|---|---|---|---|
-| `show(options)` | `title`, `lines`, `overlay?`, `duration?`, `onClose?`, `color?`, `closable?` | `void` | Opens a new banner. |
-| `close()` | none | `void` | Closes the current banner. |
-| `closeAll()` | none | `void` | Closes every banner in the queue. |
-| `isActive()` | none | `boolean` | Returns whether any banner is active. |
-| `isClosable()` | none | `boolean` | Returns whether the current banner can be closed manually. |
-| `isOverlay()` | none | `boolean` | Returns whether overlay mode is active. |
-| `render(buffer)` | `ScreenBuffer` | `void` | Draws the banner into a buffer. |
-| `renderToString()` | none | `string` | Returns the banner as a string. |
-| `showBossWarning(bossName, hp, defense, wave, options)` | boss data + options | `void` | Opens a boss warning banner. |
-| `showStory(title, lines, onClose)` | `title: string`, `lines: string[]`, `onClose?: Function` | `void` | Opens a story overlay banner. |
-
-#### `Modal`
-
-`new Modal(width, height)`
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `options.text` | `string` | `''` | Single text string. Ignored when `lines` is provided. |
+| `options.lines` | `string \| string[]` | `options.text` | Explicit content lines. |
+| `options.align` | `'left' \| 'center' \| 'right'` | `'left'` | Alignment within rendered width. |
+| `options.color` | string | `null` | ANSI color prefix. |
+| `options.bold` | boolean | `false` | Whether to use ANSI bold. |
 
 Methods:
 
 | Method | Input | Output | Description |
 |---|---|---|---|
-| `show(options)` | `title`, `content`, `items`, `selectedIndex?`, `onSelect?`, `onClose?` | `void` | Opens a modal dialog. |
-| `close()` | none | `void` | Closes the active modal. |
-| `select(index)` | `index: number` | `void` | Sets the highlighted option index. |
-| `selectPrev()` | none | `void` | Moves selection up one item. |
-| `selectNext()` | none | `void` | Moves selection down one item. |
-| `confirm()` | none | `void` | Invokes the current modal selection callback. |
-| `getSelectedIndex()` | none | `number` | Returns the current selected index. |
-| `getSelectedItem()` | none | `string \| null` | Returns the selected item label. |
-| `isActive()` | none | `boolean` | Returns whether a modal is active. |
-| `render(buffer)` | `ScreenBuffer` | `void` | Draws the modal into a buffer. |
-| `renderToString()` | none | `string` | Returns the modal as a string. |
-| `showPause(onResume, onExit)` | callbacks | `void` | Opens the built-in pause menu. |
-| `showConfirm(message, onConfirm, onCancel)` | dialog content + callbacks | `void` | Opens a confirm/cancel dialog. |
+| `measure()` | none | `{ width, height }` | Measures normalized lines. |
+| `render(width)` | `width?: number \| null` | `string[]` | Renders aligned lines. When omitted, uses measured width. |
+
+#### `BarWidget`
+
+`new BarWidget(options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `options.width` | number | `10` | Bar display width. Minimum is `1`. |
+| `options.value` | number | unset | Direct normalized ratio in `[0, 1]`. |
+| `options.current` | number | unset | Current value used when `value` is not provided. |
+| `options.max` | number | unset | Maximum value used with `current`. |
+| `options.color` | string | `null` | ANSI color for filled cells. |
+| `options.emptyColor` | string | `null` | ANSI color for empty cells. |
+| `options.bold` | boolean | `false` | Whether to use ANSI bold. |
+| `options.filledChar` | string | `'█'` | Character used for filled cells. |
+| `options.emptyChar` | string | `'░'` | Character used for empty cells. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `measure()` | none | `{ width, height }` | Returns `{ width: options.width, height: 1 }`. |
+| `render()` | none | `string[]` | Returns a single styled bar line. |
+
+Ratio rules:
+
+- `value` takes priority over `current` and `max`.
+- Ratios are clamped to `[0, 1]`.
+- Invalid `current` / `max` values render an empty bar.
+
+#### `MenuWidget`
+
+`new MenuWidget(options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `options.items` | `string \| string[]` | `[]` | Menu item labels. |
+| `options.selectedIndex` | number | `0` | Selected item index. |
+| `options.selectedPrefix` | string | `' ▸ '` | Prefix for the selected item. |
+| `options.unselectedPrefix` | string | `'   '` | Prefix for unselected items. |
+| `options.align` | `'left' \| 'center' \| 'right'` | `'left'` | Item line alignment. |
+| `options.itemColor` | string | `null` | ANSI color for unselected items. |
+| `options.selectedColor` | string | `itemColor` | ANSI color for selected item. |
+| `options.selectedBold` | boolean | `true` | Whether the selected item is bold. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `measure()` | none | `{ width, height }` | Measures the widest prefixed item and total item count. |
+| `render(width)` | `width?: number \| null` | `string[]` | Renders one line per item. |
+
+Notes:
+
+- `selectedIndex` is clamped to `>= 0`, but not to the current item count.
+- Selection styling is only applied to the item whose index matches `selectedIndex`.
+
+#### `PanelWidget`
+
+Container widget with optional title, border, padding, and child stacking.
+
+`new PanelWidget(options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `options.width` | number | `null` | Requested inner content width. |
+| `options.minWidth` | number | `0` | Minimum inner width. |
+| `options.maxWidth` | number | `null` | Maximum inner width. |
+| `options.paddingX` | number | `1` | Horizontal padding inside the frame. |
+| `options.paddingY` | number | `0` | Vertical padding inside the frame. |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `'single'` | Border configuration. |
+| `options.borderColor` | string | `null` | ANSI color for border glyphs. |
+| `options.title` | string | `null` | Optional panel title. |
+| `options.titleAlign` | `'left' \| 'center' \| 'right'` | `'center'` | Title alignment. |
+| `options.titleColor` | string | `null` | ANSI color for title text. |
+| `options.titleBold` | boolean | `true` | Whether title text is bold. |
+| `options.titleDivider` | boolean | `true` | Whether to draw a divider below the title. |
+| `options.gap` | number | `0` | Empty lines between children. |
+| `options.align` | `'left' \| 'center' \| 'right'` | `'left'` | Alignment applied to non-widget child text blocks and final body lines. |
+| `options.alignX` | `'left' \| 'center' \| 'right'` | `'center'` | Placement anchor on the x-axis. |
+| `options.alignY` | `'top' \| 'center' \| 'bottom'` | `'center'` | Placement anchor on the y-axis. |
+| `options.offsetX` | number | `0` | Placement x offset. |
+| `options.offsetY` | number | `0` | Placement y offset. |
+| `options.children` | `Array<Widget \| string \| string[]>` | `[]` | Child blocks rendered top-to-bottom. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `measure(availableWidth)` | `availableWidth?: number \| null` | `{ width, height }` | Measures the framed panel. |
+| `render(options)` | `options?: { availableWidth?: number \| null }` | `string[]` | Returns rendered panel lines. |
+| `resolvePlacement(containerWidth, containerHeight, availableWidth)` | numbers | `{ x, y }` | Resolves anchored placement using panel size. |
+
+Sizing behavior:
+
+- `width`, `minWidth`, and `maxWidth` operate on inner content width, not total framed width.
+- When `availableWidth` is provided, the inner width is reduced to fit the frame chrome.
+- Child widgets receive the resolved inner width through `child.render(innerWidth)`.
+
+#### `DialogWidget`
+
+Convenience composition for common dialog layouts. Internally it builds a `PanelWidget` containing an optional `TextWidget` block and an optional `MenuWidget` block.
+
+`new DialogWidget(options = {})`
+
+Input:
+
+| Input | Type | Default | Description |
+|---|---|---:|---|
+| `options.width` | number | `null` | Passed to internal `PanelWidget`. |
+| `options.minWidth` | number | `24` | Minimum inner width. |
+| `options.maxWidth` | number | `null` | Maximum inner width. |
+| `options.paddingX` | number | `1` | Horizontal inner padding. |
+| `options.paddingY` | number | `0` | Vertical inner padding. |
+| `options.border` | `boolean \| BorderStyle \| { style?: BorderStyle }` | `'single'` | Border configuration. |
+| `options.borderColor` | string | `null` | ANSI border color. |
+| `options.title` | string | `''` | Dialog title. |
+| `options.titleAlign` | `'left' \| 'center' \| 'right'` | `'center'` | Title alignment. |
+| `options.alignX` | `'left' \| 'center' \| 'right'` | `'center'` | Placement anchor on the x-axis. |
+| `options.alignY` | `'top' \| 'center' \| 'bottom'` | `'center'` | Placement anchor on the y-axis. |
+| `options.offsetX` | number | `0` | Placement x offset. |
+| `options.offsetY` | number | `0` | Placement y offset. |
+| `options.gap` | number | `1` | Empty lines between content and menu blocks. |
+| `options.content` | `string \| string[]` | `[]` | Body text block. |
+| `options.contentAlign` | `'left' \| 'center' \| 'right'` | `'left'` | Body text alignment. |
+| `options.contentColor` | string | `null` | ANSI color for content text. |
+| `options.contentBold` | boolean | `false` | Whether body text is bold. |
+| `options.items` | `string \| string[]` | `[]` | Menu items. |
+| `options.selectedIndex` | number | `0` | Selected menu index. |
+| `options.selectedPrefix` | string | Menu default | Prefix for selected menu item. |
+| `options.unselectedPrefix` | string | Menu default | Prefix for unselected menu item. |
+| `options.menuAlign` | `'left' \| 'center' \| 'right'` | `'left'` | Menu item alignment. |
+| `options.itemColor` | string | `null` | ANSI color for unselected menu items. |
+| `options.selectedColor` | string | `null` | ANSI color for selected menu item. |
+| `options.selectedBold` | boolean | `true` behavior | Whether selected menu item is bold. |
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `measure(availableWidth)` | `availableWidth?: number \| null` | `{ width, height }` | Delegates to internal panel measurement. |
+| `render(options)` | `options?: { availableWidth?: number \| null }` | `string[]` | Delegates to internal panel rendering. |
+| `resolvePlacement(containerWidth, containerHeight, availableWidth)` | numbers | `{ x, y }` | Delegates to internal panel placement. |
 
 ## 15. Development Notes
 
