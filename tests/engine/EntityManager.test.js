@@ -2,7 +2,7 @@
  * EntityManager 单元测试
  */
 
-const { EntityManager, EntityType } = require('../../src/engine/core/EntityManager');
+const { EntityManager, EntityType, Entity } = require('../../src/engine/core/EntityManager');
 const { EventBus } = require('../../src/engine/core/EventBus');
 
 function assert(condition, message) {
@@ -84,6 +84,43 @@ function run() {
     const stats = manager.getStats();
     assert(stats.enemies === 2, 'Should have 2 enemies');
     assert(stats.hasPlayer === true, 'Should have player');
+  })) passed++; else failed++;
+
+  if (test('should integrate kinematics with force and gravity', () => {
+    const entity = new Entity(EntityType.PARTICLE, {
+      x: 0,
+      y: 0,
+      mass: 2,
+      gravityScale: 1,
+      gravity: { x: 0, y: 10 },
+      physicsEnabled: true
+    });
+
+    entity.applyForce(4, 0);
+    entity.update(1000);
+
+    assert(entity.x === 2, `Expected x to be 2, got ${entity.x}`);
+    assert(entity.y === 10, `Expected y to be 10, got ${entity.y}`);
+    assert(entity.vx === 2, `Expected vx to be 2, got ${entity.vx}`);
+    assert(entity.vy === 10, `Expected vy to be 10, got ${entity.vy}`);
+  })) passed++; else failed++;
+
+  if (test('should bounce on bounds using restitution', () => {
+    const entity = new Entity(EntityType.PARTICLE, {
+      x: 4,
+      y: 1,
+      width: 1,
+      height: 1,
+      vx: 4,
+      restitution: 0.5,
+      bounds: { x: 0, y: 0, width: 5, height: 5 },
+      physicsEnabled: true
+    });
+
+    entity.update(1000);
+
+    assert(entity.x === 4, `Expected x to clamp at 4, got ${entity.x}`);
+    assert(entity.vx === -2, `Expected vx to reverse with restitution, got ${entity.vx}`);
   })) passed++; else failed++;
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);

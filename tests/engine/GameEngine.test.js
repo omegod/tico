@@ -4,6 +4,8 @@ const { GameEngine, GAME_STATE } = require('../../src/engine/core/GameEngine');
 function run() {
   console.log('Testing GameEngine...');
 
+  assert.deepStrictEqual(Object.keys(GAME_STATE), ['BOOT', 'RUNNING', 'STOPPED', 'PAUSED']);
+
   const engine = new GameEngine({
     frameRate: 16,
     fixedDelta: 10,
@@ -94,6 +96,13 @@ function run() {
   assert.strictEqual(engine.systems.length, 1);
   assert.strictEqual(engine.systems[0], highPrioritySystem);
   assert.strictEqual(hooks.includes('detach:low'), true);
+
+  engine.setState('menu');
+  engine.pause();
+  assert.strictEqual(engine.getState(), GAME_STATE.PAUSED);
+  engine.resume();
+  assert.strictEqual(engine.getState(), 'menu');
+  assert.strictEqual(engine.isPlaying(), true);
 
   engine.unregisterSystem(highPrioritySystem);
   assert.strictEqual(engine.systems.length, 0);

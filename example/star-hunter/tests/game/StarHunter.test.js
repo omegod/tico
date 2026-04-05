@@ -1,6 +1,6 @@
 const assert = require('assert');
 const { EventBus } = require('../../../../src/engine/core/EventBus');
-const { GameEngine, GAME_STATE } = require('../../../../src/engine/core/GameEngine');
+const { GameEngine, GAME_STATE: ENGINE_STATE } = require('../../../../src/engine/core/GameEngine');
 const { EntityManager } = require('../../../../src/engine/core/EntityManager');
 const { Renderer } = require('../../../../src/engine/rendering/Renderer');
 const { InputHandler } = require('../../../../src/engine/input/InputHandler');
@@ -8,6 +8,7 @@ const { ResourceManager } = require('../../../../src/engine/resources/ResourceMa
 const { AnimationPlayer } = require('../../../../src/engine/animation/AnimationPlayer');
 const { PhysicsWorld } = require('../../../../src/engine/physics/PhysicsWorld');
 const { StarHunter } = require('../../src/game/StarHunter');
+const { GAME_FLOW_STATE } = require('../../src/game/GameState');
 
 function run() {
   console.log('Testing StarHunter boot...');
@@ -24,7 +25,7 @@ function run() {
     width: 80,
     height: 32,
     frameRate: 50,
-    initialState: GAME_STATE.RUNNING,
+    initialState: ENGINE_STATE.RUNNING,
     eventBus
   });
   const runtime = {
@@ -42,7 +43,7 @@ function run() {
   };
 
   const game = new StarHunter({ stdout, runtime });
-  assert.strictEqual(engine.getState(), GAME_STATE.MENU);
+  assert.strictEqual(engine.getState(), GAME_FLOW_STATE.MENU);
 
   engine.renderCallback(16, 1, 0);
   const output = stdout.chunks.join('');

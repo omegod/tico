@@ -10,13 +10,7 @@ const GAME_STATE = {
   BOOT: 'boot',
   RUNNING: 'running',
   STOPPED: 'stopped',
-  MENU: 'menu',
-  SHIP_SELECT: 'shipSelect',
-  INSTRUCTIONS: 'instructions',
-  PLAYING: 'playing',
-  PAUSED: 'paused',
-  GAME_OVER: 'gameover',
-  VICTORY: 'victory'
+  PAUSED: 'paused'
 };
 
 class GameEngine {
@@ -86,29 +80,31 @@ class GameEngine {
    * 暂停游戏
    */
   pause() {
-    if (this.state === GAME_STATE.PLAYING || this.state === GAME_STATE.RUNNING) {
-      this.previousState = this.state;
-      this.state = GAME_STATE.PAUSED;
-      this.eventBus.emit(GameEvents.GAME_PAUSE, {});
+    if (this.state === GAME_STATE.BOOT || this.state === GAME_STATE.STOPPED || this.state === GAME_STATE.PAUSED) {
+      return;
     }
+
+    this.previousState = this.state;
+    this.state = GAME_STATE.PAUSED;
+    this.eventBus.emit(GameEvents.GAME_PAUSE, {});
   }
 
   /**
    * 恢复游戏
    */
   resume() {
-    if (this.state === GAME_STATE.PAUSED && this.previousState) {
-      this.state = this.previousState;
-      this.previousState = null;
-      this.eventBus.emit(GameEvents.GAME_RESUME, {});
-    }
+    if (this.state !== GAME_STATE.PAUSED) return;
+
+    this.state = this.previousState || GAME_STATE.RUNNING;
+    this.previousState = null;
+    this.eventBus.emit(GameEvents.GAME_RESUME, {});
   }
 
   /**
    * 切换暂停状态
    */
   togglePause() {
-    if (this.state === GAME_STATE.PLAYING || this.state === GAME_STATE.RUNNING) {
+    if (this.state !== GAME_STATE.PAUSED && this.state !== GAME_STATE.STOPPED && this.state !== GAME_STATE.BOOT) {
       this.pause();
     } else if (this.state === GAME_STATE.PAUSED) {
       this.resume();
@@ -122,14 +118,6 @@ class GameEngine {
   setState(newState) {
     const oldState = this.state;
     this.state = newState;
-
-    // 状态转换事件
-    if (newState === GAME_STATE.GAME_OVER) {
-      this.eventBus.emit(GameEvents.GAME_OVER, { score: 0 });
-    } else if (newState === GAME_STATE.VICTORY) {
-      this.eventBus.emit(GameEvents.VICTORY, { score: 0 });
-    }
-
     return oldState;
   }
 
@@ -353,8 +341,7 @@ class GameEngine {
    * 检查是否在可交互状态
    */
   isInteractive() {
-    return [GAME_STATE.MENU, GAME_STATE.SHIP_SELECT, GAME_STATE.INSTRUCTIONS,
-            GAME_STATE.GAME_OVER, GAME_STATE.VICTORY].includes(this.state);
+    return this.state !== GAME_STATE.BOOT && this.state !== GAME_STATE.STOPPED;
   }
 
   /**
@@ -368,7 +355,9 @@ class GameEngine {
    * 检查是否在游戏进行状态
    */
   isPlaying() {
-    return this.state === GAME_STATE.PLAYING;
+    return this.state !== GAME_STATE.BOOT &&
+      this.state !== GAME_STATE.STOPPED &&
+      this.state !== GAME_STATE.PAUSED;
   }
 }
 

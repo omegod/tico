@@ -56,7 +56,7 @@ const { EngineApp, Scene } = require('./src');
 - 场景树：`Scene`、`SceneManager`、`Node2D`、`SpriteNode`、`TextNode`、`TilemapNode`
 - 输入：`InputHandler`、`InputActionContext`、`ActionMap`、`KeyMapping`、`getAction`、`matches`
 - 渲染：`Renderer`、`COLORS`、`Layer`、`Camera2D`、`ScreenBuffer`、`Cell`
-- 内容、布局与组件：`ResourceManager`、`AnimationPlayer`、`Tween`、`EASING`、`BORDER_STYLES`、`measureText`、`measureLines`、`PanelWidget`、`DialogWidget`、`TextWidget`、`BarWidget`、`MenuWidget`
+- 内容、布局与组件：`ResourceManager`、`AnimationPlayer`、`Tween`、`EASING`、`BORDER_STYLES`、`normalizeLines`、`resolveBorder`、`borderThickness`、`measureText`、`measureLines`、`styleText`、`alignText`、`padBlock`、`stackBlocks`、`frameLines`、`dividerLine`、`frameMetrics`、`resolvePosition`、`Widget`、`TextWidget`、`BarWidget`、`MenuWidget`、`PanelWidget`、`DialogWidget`
 
 ## 4. 运行时架构
 
@@ -106,6 +106,20 @@ app.time.after(1200, () => {
   this.statusText = '';
 }, { owner: this });
 ```
+
+### 运行时上手建议
+
+建议把运行时职责拆成三层：
+
+- `Scene` 负责流程和高层玩法组织。
+- `GameEngine` 负责主循环、系统调度、暂停恢复。
+- `EngineTime` 负责所有应该遵守暂停 / 倍速规则的延时任务。
+
+几个实用约定：
+
+- `dt`、`fixedDelta`、`frameRate` 统一按毫秒表达。
+- 需要和暂停联动的逻辑优先放到 `app.time.after()` / `every()`。
+- 菜单、战斗、结算等游戏流程状态建议定义在 scene 或 game 层，不要塞进引擎运行态。
 
 ### 系统调度
 
@@ -208,6 +222,12 @@ if (inputContext.consume('LEFT')) {
 
 内置 `KeyMapping` 提供了移动、射击、暂停和确认等常用动作映射。
 
+### 输入上手建议
+
+- 想保留终端原始按键，直接用 `onKey(callback)`。
+- 想写动作语义，优先用 `ActionMap` + `InputActionContext`。
+- 菜单和一次性行为优先用 `consume(action)`，避免长按重复触发。
+
 ## 7. 渲染
 
 `Renderer` 先绘制到 `ScreenBuffer`，再统一刷新到终端。
@@ -225,6 +245,17 @@ if (inputContext.consume('LEFT')) {
 - `scrollBackground()`
 
 使用 `Layer` 控制绘制优先级，使用 `COLORS` 进行 ANSI 样式控制。
+
+### 渲染上手建议
+
+- 世界内容：角色、地图、投射物，跟随相机。
+- 屏幕 UI：HUD、弹窗、提示，直接使用屏幕坐标。
+
+几个常见注意点：
+
+- `drawString()`、`drawText()`、`drawArt()` 都会经过当前相机投影。
+- 终端里“字符数”不等于“视觉宽度”，涉及对齐时优先用 `ScreenBuffer` / `layout` 提供的宽度工具。
+- 单纯覆盖层通常直接放在 `onRender()` 里绘制，比建成世界实体更简单。
 
 ## 8. 节点
 
@@ -276,6 +307,12 @@ if (inputContext.consume('LEFT')) {
 
 建议使用命名空间式 key，例如 `game:ui:title`，这样可以用 `clear('game:ui:')` 批量回收。
 
+### 资源上手建议
+
+- 启动阶段资源更适合 `loadTextSync()` / `loadJsonSync()`。
+- 延迟加载或异步场景资源更适合异步 loader。
+- 建议统一 key 前缀，例如 `game:level:1`、`game:ui:title`、`engine:test:*`。
+
 ## 10. 动画
 
 `AnimationPlayer` 管理补间动画，`Tween` 提供轻量数值动画能力。
@@ -288,9 +325,15 @@ app.animations.tween(this, 'displayedScore', 1000, 180, {
 });
 ```
 
+### 动画上手建议
+
+- `Tween` 是通用数值补间工具，不只服务 UI。
+- 任何数字属性都可以 tween，例如 `x`、`y`、`rotation`、计分显示值。
+- tween 只负责改数值；这个数值是否真的产生视觉效果，取决于渲染层有没有消费它。
+
 ## 11. 物理
 
-`PhysicsWorld` 刻意保持轻量，更适合碰撞、查询和玩法判定，而不是完整刚体物理。
+`PhysicsWorld` 刻意保持轻量，更适合碰撞、查询、玩法判定，以及简单运动学推进，而不是完整刚体物理。
 
 适合使用场景：
 
@@ -298,6 +341,104 @@ app.animations.tween(this, 'displayedScore', 1000, 180, {
 - 范围伤害
 - 范围查询
 - 简单障碍检测
+
+### 物理快速上手
+
+这套物理更适合理解成“轻量运动学 + 碰撞查询”，不是完整刚体系统。
+
+#### 11.1 直接用 `Entity`
+
+如果只需要单个物体做简单运动，直接在实体上启用运动学就够了：
+
+```js
+const projectile = app.entities.create('bullet', {
+  x: 10,
+  y: 20,
+  vx: 8,
+  vy: -18,
+  gravity: { x: 0, y: 30 },
+  gravityScale: 1,
+  physicsEnabled: true
+});
+
+projectile.update(dt);
+```
+
+适合：
+
+- 单个投射物
+- 不需要放进物理世界统一推进的临时对象
+
+#### 11.2 用 `PhysicsWorld`
+
+如果一批 body 要共享重力和边界，建议交给 `PhysicsWorld.update(dt)`：
+
+```js
+app.physics.setGravity(0, 24);
+app.physics.setBounds({ x: 0, y: 0, width: 80, height: 32 });
+
+const ball = app.entities.create('particle', {
+  x: 20,
+  y: 4,
+  vx: 10,
+  vy: 0,
+  gravityScale: 1,
+  restitution: 0.6,
+  physicsEnabled: true
+});
+
+app.physics.add('dynamic', ball, {
+  bodyType: 'dynamic'
+});
+
+app.physics.update(dt);
+```
+
+#### 11.3 单位和语义
+
+- `dt` 单位是毫秒。
+- `vx` / `vy`、`ax` / `ay`、`gravity` 都按“每秒”语义积分。
+- `applyForce()` 会在下一次运动学更新里按 `mass` 转成加速度。
+- `applyImpulse()` 会立即修改速度。
+- `restitution` 目前只对 world bounds 反弹生效，不会自动处理实体与实体碰撞后的弹开。
+
+#### 11.4 常见玩法模板
+
+抛物线：
+
+```js
+const arc = app.entities.create('bullet', {
+  x: 8,
+  y: 22,
+  vx: 12,
+  vy: -20,
+  gravity: { x: 0, y: 32 },
+  physicsEnabled: true
+});
+```
+
+弹跳球：
+
+```js
+const ball = app.entities.create('particle', {
+  x: 30,
+  y: 3,
+  vx: 9,
+  vy: 0,
+  gravityScale: 1,
+  restitution: 0.8,
+  bounds: { x: 0, y: 0, width: 80, height: 32 },
+  physicsEnabled: true
+});
+```
+
+受力推动：
+
+```js
+entity.applyForce(40, 0);
+entity.applyForce(0, -12);
+entity.update(dt);
+```
 
 ## 12. 推荐项目结构
 
@@ -389,15 +530,11 @@ my-game/
 | 值 | 含义 |
 |---|---|
 | `BOOT` | 启动状态，主循环尚未进入交互。 |
-| `RUNNING` | 启动后使用的活动状态。 |
+| `RUNNING` | 活动运行态。 |
 | `STOPPED` | 已停止，主循环不再运行。 |
-| `MENU` | 主菜单状态。 |
-| `SHIP_SELECT` | 战机选择状态。 |
-| `INSTRUCTIONS` | 说明 / 教学状态。 |
-| `PLAYING` | 游戏进行中状态。 |
-| `PAUSED` | 暂停状态。 |
-| `GAME_OVER` | 失败状态。 |
-| `VICTORY` | 胜利状态。 |
+| `PAUSED` | 暂停运行态。 |
+
+`GAME_STATE` 现在只表示引擎运行态。像菜单、选船、说明、失败、胜利这类游戏流程状态，建议在具体 scene 或 game 层自行定义。
 
 方法：
 
@@ -406,7 +543,7 @@ my-game/
 | `onRender(callback)` | `callback(dt, frameCount, alpha)` | `void` | 注册每帧渲染回调。 |
 | `init()` | 无 | `void` | 启动循环计时，并派发 `GameEvents.GAME_START`。 |
 | `stop()` | 无 | `void` | 停止循环、清理定时器并清空事件总线。 |
-| `pause()` | 无 | `void` | 将 `PLAYING` 或 `RUNNING` 切换到 `PAUSED`。 |
+| `pause()` | 无 | `void` | 暂停任意活动中的非 `BOOT` / 非 `STOPPED` 状态，并保存暂停前状态。 |
 | `resume()` | 无 | `void` | 从暂停状态恢复到之前的状态。 |
 | `togglePause()` | 无 | `void` | 在暂停与继续之间切换。 |
 | `setState(newState)` | `newState: string` | `string` | 设置状态并返回旧状态。 |
@@ -420,9 +557,9 @@ my-game/
 | `loop()` | 无 | `void` | 执行一帧并安排下一次 tick。 |
 | `startLoop()` | 无 | `void` | 必要时先初始化，再进入主循环。 |
 | `getState()` | 无 | `string` | 获取当前状态。 |
-| `isInteractive()` | 无 | `boolean` | 判断当前是否处于菜单类可交互状态。 |
+| `isInteractive()` | 无 | `boolean` | 判断当前是否处于活动运行态（不是 `BOOT` / `STOPPED`）。 |
 | `isPaused()` | 无 | `boolean` | 判断当前是否暂停。 |
-| `isPlaying()` | 无 | `boolean` | 判断当前是否处于 `PLAYING`。 |
+| `isPlaying()` | 无 | `boolean` | 判断当前是否仍在推进模拟（不是 `BOOT` / `STOPPED` / `PAUSED`）。 |
 
 ### 14.2 场景系统
 
@@ -634,6 +771,14 @@ my-game/
 | `data.maxLife` | number | `life` | 生命周期上限。 |
 | `data.speed` | number | `1` | 基础速度。 |
 | `data.vx` / `data.vy` | number | `0` | 速度分量。 |
+| `data.ax` / `data.ay` | number | `0` | 运动学积分使用的加速度分量。 |
+| `data.mass` | number | `1` | `applyForce()` / `applyImpulse()` 使用的质量。 |
+| `data.gravityScale` | number | `0` | 施加到局部 / 世界重力上的倍率。 |
+| `data.gravity` | `{ x, y } \| null` | `null` | 可选的实体局部重力向量。 |
+| `data.restitution` | number | `0` | 解析世界边界时的弹性系数。 |
+| `data.maxSpeed` | number \| null | `null` | 运动学积分允许的最大速度。 |
+| `data.bounds` | `{ x, y, width, height } \| null` | `null` | 用于夹紧 / 反弹的可选世界边界。 |
+| `data.physicsEnabled` | boolean | 自动判断 | 即使只提供速度，也强制启用运动学积分。 |
 | `data.isEnemy` | boolean | 省略 | 子弹专用标记。 |
 | `data.damage` | number | 省略 | 子弹伤害。 |
 | `data.pierce` | boolean | 省略 | 穿透标记。 |
@@ -647,7 +792,15 @@ my-game/
 |---|---|---|---|
 | `getBounds()` | 无 | `{ left, right, top, bottom }` | 返回实体 AABB。 |
 | `collidesWith(other)` | `other: Entity` | `boolean` | 判断是否与另一个实体碰撞。 |
-| `update(dt)` | `dt: number` | `void` | 更新位置和生命周期。 |
+| `update(dt)` | `dt: number` | `void` | 更新位置和生命周期；启用时走运动学积分。 |
+| `setVelocity(vx, vy)` | `vx: number`，`vy: number` | `this` | 替换速度向量。 |
+| `setAcceleration(ax, ay)` | `ax: number`，`ay: number` | `this` | 替换加速度向量并启用运动学。 |
+| `setGravity(x, y)` | `x: number`，`y: number` | `this` | 设置实体局部重力并启用运动学。 |
+| `setBounds(bounds)` | 矩形 | `this` | 设置用于夹紧 / 反弹的世界边界。 |
+| `applyForce(fx, fy)` | `fx: number`，`fy: number` | `this` | 为下一次运动学更新累积一个力。 |
+| `applyImpulse(ix, iy)` | `ix: number`，`iy: number` | `this` | 按质量即时修改速度。 |
+| `clearForces()` | 无 | `this` | 清空累计力。 |
+| `updateKinematics(dt, options)` | `dt: number`，`options?: { gravity?, bounds? }` | `this` | 积分 velocity / acceleration / force / gravity，并解析可选边界。 |
 | `destroy()` | 无 | `void` | 将实体标记为失活。 |
 
 #### `EntityType`
@@ -724,14 +877,17 @@ my-game/
 
 | 方法 | 输入 | 输出 | 说明 |
 |---|---|---|---|
-| `add(groupName, entity, options)` | `groupName: string`，`entity: object`，`options.layer?`，`options.mask?` | `entity` | 将实体注册到一个碰撞分组。 |
+| `add(groupName, entity, options)` | `groupName: string`，`entity: object`，`options.layer?`，`options.mask?`，`options.bodyType?`，`options.gravity?`，`options.gravityScale?`，`options.mass?`，`options.restitution?`，`options.maxSpeed?`，`options.bounds?` | `entity` | 将实体注册到一个碰撞分组，并可附加轻量 body 配置。 |
 | `remove(groupName, entity)` | `groupName: string`，`entity: object` | `void` | 从分组和 body 注册表中移除实体。 |
 | `getGroup(groupName)` | `groupName: string` | array | 返回某个分组中的所有实体。 |
 | `setLayerRule(layerA, layerB, enabled)` | `layerA: string`，`layerB: string`，`enabled?: boolean` | `void` | 开启或关闭某对 layer 的碰撞规则。 |
+| `setGravity(x, y)` | `x: number \| { x, y }`，`y?: number` | `void` | 设置 dynamic body 使用的世界重力向量。 |
+| `setBounds(bounds)` | `bounds: { x, y, width, height } \| null` | `void` | 设置 dynamic body 共享的世界边界。 |
 | `canCollide(entityA, entityB)` | 两个实体 | `boolean` | 检查 mask 和显式 layer 规则。 |
 | `testGroup(groupA, groupB, callback, margin)` | 分组名 + 回调 | `void` | 遍历两组实体并对重叠对调用回调。 |
 | `queryRect(rect, options)` | `rect: object`，`options.groupName?`，`options.layer?`，`options.margin?` | array | 返回与查询矩形重叠的实体。 |
 | `raycast(start, end, options)` | `start`，`end`，`options.steps?`，`options.groupName?`，`options.layer?`，`options.first?` | 命中结果 | 默认返回第一个命中；`first === false` 时返回全部命中。 |
+| `update(dt, options)` | `dt: number`，`options?: { gravity?, bounds? }` | `void` | 推进所有 `bodyType: 'dynamic'` 的轻量运动学更新。 |
 
 ### 14.5 渲染系统
 
@@ -1043,6 +1199,60 @@ my-game/
 - 本节中所有 `width` 都指终端显示宽度，不是 JavaScript 字符串长度。
 
 引擎不再内置顶层 `ui` 包。像 HUD、横幅、弹窗流程这样的更高层覆盖层，应当由具体游戏基于 widgets 自行组合。
+
+### 14.8.1 怎么选这层 API
+
+可以把这一层理解成两部分：
+
+- layout helpers 负责“算宽度、做对齐、加边框、算摆放位置”。
+- widgets 负责“把常见 UI 片段组合成可复用文本块”。
+
+常见选择方式：
+
+- 只想处理字符串宽度、对齐、边框：优先用 `measureText`、`alignText`、`frameLines`。
+- 想拼一个有标题、有 padding 的容器：优先用 `PanelWidget`。
+- 想拼一个带正文和菜单项的对话框：优先用 `DialogWidget`。
+- 想渲染一段正文：用 `TextWidget`。
+- 想渲染血条、能量条、进度条：用 `BarWidget`。
+- 想渲染菜单列表和高亮项：用 `MenuWidget`。
+
+推荐组合方式：
+
+1. 先用 widget 生成文本块。
+2. 再用 `measure()` 或 `resolvePlacement()` 算尺寸和摆放。
+3. 最后把 `render()` 返回的文本行交给 `renderer.drawText(x, y, lines, ...)` 或 `ScreenBuffer.drawText(...)`。
+
+最小示例：
+
+```js
+const { DialogWidget, COLORS } = require('@omgod/tico');
+
+const dialog = new DialogWidget({
+  title: 'Paused',
+  border: 'double',
+  width: 28,
+  content: ['Game paused', 'Select an action'],
+  items: ['Resume', 'Exit'],
+  selectedIndex: 0,
+  borderColor: COLORS.cyan,
+  selectedColor: COLORS.yellow
+});
+
+const lines = dialog.render({ availableWidth: app.renderer.width });
+const { x, y } = dialog.resolvePlacement(
+  app.renderer.width,
+  app.renderer.height,
+  app.renderer.width
+);
+
+app.renderer.drawText(x, y, lines);
+```
+
+额外注意：
+
+- 这里的 `width` 指视觉宽度，不是字符串长度。
+- `PanelWidget.width`、`DialogWidget.width` 约束的是内部内容宽度，不是最终带边框的总宽度。
+- 如果内容里混用 ANSI 颜色和中文字符，优先用这层 helper / widget，不要手写 `String.length` 对齐。
 
 #### `BORDER_STYLES`
 

@@ -56,7 +56,7 @@ The package root re-exports the engine surface from `src/engine/index.js`.
 - Scene graph: `Scene`, `SceneManager`, `Node2D`, `SpriteNode`, `TextNode`, `TilemapNode`
 - Input: `InputHandler`, `InputActionContext`, `ActionMap`, `KeyMapping`, `getAction`, `matches`
 - Rendering: `Renderer`, `COLORS`, `Layer`, `Camera2D`, `ScreenBuffer`, `Cell`
-- Content, layout, and widgets: `ResourceManager`, `AnimationPlayer`, `Tween`, `EASING`, `BORDER_STYLES`, `measureText`, `measureLines`, `PanelWidget`, `DialogWidget`, `TextWidget`, `BarWidget`, `MenuWidget`
+- Content, layout, and widgets: `ResourceManager`, `AnimationPlayer`, `Tween`, `EASING`, `BORDER_STYLES`, `normalizeLines`, `resolveBorder`, `borderThickness`, `measureText`, `measureLines`, `styleText`, `alignText`, `padBlock`, `stackBlocks`, `frameLines`, `dividerLine`, `frameMetrics`, `resolvePosition`, `Widget`, `TextWidget`, `BarWidget`, `MenuWidget`, `PanelWidget`, `DialogWidget`
 
 ## 4. Runtime Architecture
 
@@ -106,6 +106,20 @@ app.time.after(1200, () => {
   this.statusText = '';
 }, { owner: this });
 ```
+
+### Runtime Usage Notes
+
+It helps to think of the runtime as three layers:
+
+- `Scene` owns flow and high-level gameplay.
+- `GameEngine` owns the main loop, system scheduling, and pause/resume.
+- `EngineTime` owns delayed work that should respect pause and time scale.
+
+Useful conventions:
+
+- `dt`, `fixedDelta`, and `frameRate` are expressed in milliseconds.
+- If work should pause with the game, prefer `app.time.after()` / `every()` over raw `setTimeout()`.
+- Keep game-specific flow states such as menu, battle, and results in your scene/game layer instead of extending `GAME_STATE`.
 
 ### Systems
 
@@ -208,6 +222,12 @@ if (inputContext.consume('LEFT')) {
 
 The built-in `KeyMapping` helper covers common actions such as movement, shooting, pause, and confirm.
 
+### Input Usage Notes
+
+- Use `onKey(callback)` when you want raw terminal key events.
+- Use `ActionMap` + `InputActionContext` when you want gameplay-level actions.
+- For menus and one-shot actions, prefer `consume(action)` so held keys do not trigger repeatedly.
+
 ## 7. Rendering
 
 `Renderer` draws into a `ScreenBuffer` and then flushes the buffer to the terminal.
@@ -225,6 +245,17 @@ Main methods:
 - `scrollBackground()`
 
 Use `Layer` to control draw priority and `COLORS` for ANSI styling.
+
+### Rendering Usage Notes
+
+- World content: actors, maps, projectiles, camera-followed elements.
+- Screen UI: HUDs, modals, and prompts using screen-space coordinates.
+
+Common pitfalls:
+
+- `drawString()`, `drawText()`, and `drawArt()` all go through the active camera transform.
+- In terminals, string length and display width are not always the same. For alignment-sensitive UI, prefer the `ScreenBuffer` / `layout` width-aware helpers.
+- If something is purely an overlay, drawing it in `onRender()` is often simpler than modeling it as a world entity.
 
 ## 8. Nodes
 
@@ -276,6 +307,12 @@ Methods:
 
 Use namespace-style keys such as `game:ui:title` so `clear('game:ui:')` can release a whole group.
 
+### Resource Usage Notes
+
+- Use `loadTextSync()` / `loadJsonSync()` for startup-time resources.
+- Use async loaders for deferred loading.
+- A consistent key scheme such as `game:level:1`, `game:ui:title`, or `engine:test:*` makes cleanup easier.
+
 ## 10. Animation
 
 `AnimationPlayer` manages tweens, and `Tween` provides a lightweight value animation primitive.
@@ -288,9 +325,15 @@ app.animations.tween(this, 'displayedScore', 1000, 180, {
 });
 ```
 
+### Animation Usage Notes
+
+- `Tween` is a general numeric interpolation tool, not only a UI helper.
+- Any numeric property can be tweened: `x`, `y`, `rotation`, score displays, and so on.
+- Tweens only change values; visible effect depends on whether your render layer consumes that property.
+
 ## 11. Physics
 
-`PhysicsWorld` is intentionally lightweight. It is designed for collisions, queries, and gameplay checks rather than full rigid-body simulation.
+`PhysicsWorld` is intentionally lightweight. It is designed for collisions, queries, gameplay checks, and simple kinematic stepping rather than full rigid-body simulation.
 
 Use it for:
 
@@ -298,6 +341,104 @@ Use it for:
 - Area damage
 - Proximity queries
 - Simple obstacle checks
+
+### Physics Quickstart
+
+This physics layer is best understood as "lightweight kinematics plus collision/query helpers", not a full rigid-body engine.
+
+#### 11.1 Use `Entity` Directly
+
+If you only need one object to move in a simple way, enabling kinematics on the entity itself is enough:
+
+```js
+const projectile = app.entities.create('bullet', {
+  x: 10,
+  y: 20,
+  vx: 8,
+  vy: -18,
+  gravity: { x: 0, y: 30 },
+  gravityScale: 1,
+  physicsEnabled: true
+});
+
+projectile.update(dt);
+```
+
+Good for:
+
+- A single projectile
+- Temporary objects that do not need centralized world stepping
+
+#### 11.2 Use `PhysicsWorld`
+
+If you have many bodies that should share world stepping, use `PhysicsWorld.update(dt)`:
+
+```js
+app.physics.setGravity(0, 24);
+app.physics.setBounds({ x: 0, y: 0, width: 80, height: 32 });
+
+const ball = app.entities.create('particle', {
+  x: 20,
+  y: 4,
+  vx: 10,
+  vy: 0,
+  gravityScale: 1,
+  restitution: 0.6,
+  physicsEnabled: true
+});
+
+app.physics.add('dynamic', ball, {
+  bodyType: 'dynamic'
+});
+
+app.physics.update(dt);
+```
+
+#### 11.3 Units and Semantics
+
+- `dt` is measured in milliseconds.
+- `vx` / `vy`, `ax` / `ay`, and `gravity` are integrated with per-second semantics.
+- `applyForce()` is converted into acceleration using `mass` during the next kinematic step.
+- `applyImpulse()` changes velocity immediately.
+- `restitution` currently applies to world-bounds bounce only; it does not automatically resolve entity-entity bounce.
+
+#### 11.4 Common Patterns
+
+Parabolic projectile:
+
+```js
+const arc = app.entities.create('bullet', {
+  x: 8,
+  y: 22,
+  vx: 12,
+  vy: -20,
+  gravity: { x: 0, y: 32 },
+  physicsEnabled: true
+});
+```
+
+Bouncing ball:
+
+```js
+const ball = app.entities.create('particle', {
+  x: 30,
+  y: 3,
+  vx: 9,
+  vy: 0,
+  gravityScale: 1,
+  restitution: 0.8,
+  bounds: { x: 0, y: 0, width: 80, height: 32 },
+  physicsEnabled: true
+});
+```
+
+Force-driven motion:
+
+```js
+entity.applyForce(40, 0);
+entity.applyForce(0, -12);
+entity.update(dt);
+```
 
 ## 12. Recommended Project Layout
 
@@ -389,15 +530,11 @@ Returns: `GameEngine`
 | Value | Meaning |
 |---|---|
 | `BOOT` | Boot state before the game loop becomes interactive. |
-| `RUNNING` | Active engine state used immediately after boot. |
+| `RUNNING` | Active runtime state. |
 | `STOPPED` | Loop has been stopped and the engine is inactive. |
-| `MENU` | Main menu state. |
-| `SHIP_SELECT` | Ship selection state. |
-| `INSTRUCTIONS` | How-to-play / instructions state. |
-| `PLAYING` | In-game active state. |
-| `PAUSED` | Paused gameplay state. |
-| `GAME_OVER` | Loss state. |
-| `VICTORY` | Win state. |
+| `PAUSED` | Paused runtime state. |
+
+`GAME_STATE` now models only engine runtime states. Game-specific flow states such as menu, ship select, instructions, game over, or victory should be defined by your scene/game layer.
 
 Methods:
 
@@ -406,7 +543,7 @@ Methods:
 | `onRender(callback)` | `callback(dt, frameCount, alpha)` | `void` | Registers the per-frame render callback. |
 | `init()` | none | `void` | Starts the loop bookkeeping and emits `GameEvents.GAME_START`. |
 | `stop()` | none | `void` | Stops the loop, clears the timeout, and clears the event bus. |
-| `pause()` | none | `void` | Switches from `PLAYING` or `RUNNING` to `PAUSED`. |
+| `pause()` | none | `void` | Pauses any active non-boot, non-stopped state and stores the previous state. |
 | `resume()` | none | `void` | Restores the previous state after pause. |
 | `togglePause()` | none | `void` | Toggles pause and resume. |
 | `setState(newState)` | `newState: string` | `string` | Sets state and returns the previous state. |
@@ -420,9 +557,9 @@ Methods:
 | `loop()` | none | `void` | Runs one frame and schedules the next tick. |
 | `startLoop()` | none | `void` | Starts the engine if needed and enters the main loop. |
 | `getState()` | none | `string` | Returns the current state. |
-| `isInteractive()` | none | `boolean` | Returns whether the current state is a menu-like state. |
+| `isInteractive()` | none | `boolean` | Returns whether the engine is in an active runtime state (not `BOOT` / `STOPPED`). |
 | `isPaused()` | none | `boolean` | Returns whether the engine is paused. |
-| `isPlaying()` | none | `boolean` | Returns whether the engine is in `PLAYING`. |
+| `isPlaying()` | none | `boolean` | Returns whether the engine is actively advancing simulation (not `BOOT` / `STOPPED` / `PAUSED`). |
 
 ### 14.2 Scene System
 
@@ -634,6 +771,14 @@ Methods:
 | `data.maxLife` | number | `life` | Maximum life for effect systems. |
 | `data.speed` | number | `1` | Base speed. |
 | `data.vx` / `data.vy` | number | `0` | Velocity components. |
+| `data.ax` / `data.ay` | number | `0` | Acceleration components used by kinematic integration. |
+| `data.mass` | number | `1` | Mass used by `applyForce()` and `applyImpulse()`. |
+| `data.gravityScale` | number | `0` | Multiplier applied to local/world gravity. |
+| `data.gravity` | `{ x, y } \| null` | `null` | Optional per-entity gravity vector. |
+| `data.restitution` | number | `0` | Bounce ratio used when resolving world bounds. |
+| `data.maxSpeed` | number \| null | `null` | Maximum speed allowed by kinematic integration. |
+| `data.bounds` | `{ x, y, width, height } \| null` | `null` | Optional world bounds used for clamp/bounce. |
+| `data.physicsEnabled` | boolean | auto | Forces kinematic integration on even if only velocity is provided. |
 | `data.isEnemy` | boolean | omitted | Bullet-specific flag. |
 | `data.damage` | number | omitted | Bullet damage payload. |
 | `data.pierce` | boolean | omitted | Piercing flag. |
@@ -647,7 +792,15 @@ Methods:
 |---|---|---|---|
 | `getBounds()` | none | `{ left, right, top, bottom }` | Returns the entity AABB. |
 | `collidesWith(other)` | `other: Entity` | `boolean` | Tests overlap against another entity. |
-| `update(dt)` | `dt: number` | `void` | Advances position and life counters. |
+| `update(dt)` | `dt: number` | `void` | Advances position and life counters. Uses kinematic integration when enabled. |
+| `setVelocity(vx, vy)` | `vx: number`, `vy: number` | `this` | Replaces the velocity vector. |
+| `setAcceleration(ax, ay)` | `ax: number`, `ay: number` | `this` | Replaces the acceleration vector and enables kinematics. |
+| `setGravity(x, y)` | `x: number`, `y: number` | `this` | Sets a per-entity gravity vector and enables kinematics. |
+| `setBounds(bounds)` | rect | `this` | Sets world bounds used for clamp/bounce. |
+| `applyForce(fx, fy)` | `fx: number`, `fy: number` | `this` | Adds a force for the next kinematic step. |
+| `applyImpulse(ix, iy)` | `ix: number`, `iy: number` | `this` | Instantly changes velocity using mass. |
+| `clearForces()` | none | `this` | Clears accumulated forces. |
+| `updateKinematics(dt, options)` | `dt: number`, `options?: { gravity?, bounds? }` | `this` | Integrates velocity, acceleration, force, gravity, and optional bounds response. |
 | `destroy()` | none | `void` | Marks the entity inactive. |
 
 #### `EntityType`
@@ -724,14 +877,17 @@ Methods:
 
 | Method | Input | Output | Description |
 |---|---|---|---|
-| `add(groupName, entity, options)` | `groupName: string`, `entity: object`, `options.layer?`, `options.mask?` | `entity` | Registers an entity in a collision group. |
+| `add(groupName, entity, options)` | `groupName: string`, `entity: object`, `options.layer?`, `options.mask?`, `options.bodyType?`, `options.gravity?`, `options.gravityScale?`, `options.mass?`, `options.restitution?`, `options.maxSpeed?`, `options.bounds?` | `entity` | Registers an entity in a collision group and can attach lightweight body settings. |
 | `remove(groupName, entity)` | `groupName: string`, `entity: object` | `void` | Removes an entity from a group and the body registry. |
 | `getGroup(groupName)` | `groupName: string` | array | Returns all entities in a group. |
 | `setLayerRule(layerA, layerB, enabled)` | `layerA: string`, `layerB: string`, `enabled?: boolean` | `void` | Enables or disables a pairwise collision rule. |
+| `setGravity(x, y)` | `x: number \| { x, y }`, `y?: number` | `void` | Sets the world gravity vector used by dynamic bodies. |
+| `setBounds(bounds)` | `bounds: { x, y, width, height } \| null` | `void` | Sets shared world bounds for dynamic bodies. |
 | `canCollide(entityA, entityB)` | entities | `boolean` | Checks body masks and explicit layer rules. |
 | `testGroup(groupA, groupB, callback, margin)` | group names, callback | `void` | Tests each pair and invokes the callback for overlapping bodies. |
 | `queryRect(rect, options)` | `rect: object`, `options.groupName?`, `options.layer?`, `options.margin?` | array | Returns entities that overlap the query rectangle. |
 | `raycast(start, end, options)` | `start`, `end`, `options.steps?`, `options.groupName?`, `options.layer?`, `options.first?` | hit or hits | Returns the first hit by default, or all hits when `first === false`. |
+| `update(dt, options)` | `dt: number`, `options?: { gravity?, bounds? }` | `void` | Advances all `bodyType: 'dynamic'` bodies through lightweight kinematic integration. |
 
 ### 14.5 Rendering
 
@@ -1043,6 +1199,60 @@ This layer is display-width aware:
 - All `width` values in this section refer to terminal display width, not JavaScript string length.
 
 The engine no longer ships a top-level `ui` package. Higher-level overlays such as HUDs, banners, and modal flows are expected to be built in your game code by composing widgets.
+
+### 14.8.1 How To Choose This Layer
+
+It helps to think of this layer as two parts:
+
+- layout helpers solve width measurement, alignment, framing, and placement.
+- widgets compose reusable terminal UI blocks from those helpers.
+
+Common choices:
+
+- If you only need width-aware string alignment or borders, start with `measureText`, `alignText`, and `frameLines`.
+- If you need a titled framed container, start with `PanelWidget`.
+- If you need a dialog with body text plus menu items, start with `DialogWidget`.
+- Use `TextWidget` for text blocks.
+- Use `BarWidget` for HP bars, energy bars, or progress indicators.
+- Use `MenuWidget` for option lists with a highlighted selection.
+
+Recommended composition flow:
+
+1. Build the block with widgets.
+2. Use `measure()` or `resolvePlacement()` to decide size and anchor.
+3. Pass the `render()` result to `renderer.drawText(x, y, lines, ...)` or `ScreenBuffer.drawText(...)`.
+
+Minimal example:
+
+```js
+const { DialogWidget, COLORS } = require('@omgod/tico');
+
+const dialog = new DialogWidget({
+  title: 'Paused',
+  border: 'double',
+  width: 28,
+  content: ['Game paused', 'Select an action'],
+  items: ['Resume', 'Exit'],
+  selectedIndex: 0,
+  borderColor: COLORS.cyan,
+  selectedColor: COLORS.yellow
+});
+
+const lines = dialog.render({ availableWidth: app.renderer.width });
+const { x, y } = dialog.resolvePlacement(
+  app.renderer.width,
+  app.renderer.height,
+  app.renderer.width
+);
+
+app.renderer.drawText(x, y, lines);
+```
+
+Extra notes:
+
+- `width` means display width, not JavaScript string length.
+- `PanelWidget.width` and `DialogWidget.width` constrain inner content width, not total outer frame width.
+- When content mixes ANSI colors and CJK/full-width characters, prefer these helpers/widgets over manual `String.length` alignment.
 
 #### `BORDER_STYLES`
 

@@ -6,7 +6,7 @@
 const readline = require('readline');
 
 // 引擎
-const { GameEngine, GAME_STATE } = require('../../../../src/engine/core/GameEngine');
+const { GameEngine, GAME_STATE: ENGINE_STATE } = require('../../../../src/engine/core/GameEngine');
 const { EventBus, GameEvents } = require('../../../../src/engine/core/EventBus');
 const { EntityManager } = require('../../../../src/engine/core/EntityManager');
 const { CollisionSystem } = require('../../../../src/engine/core/CollisionSystem');
@@ -17,6 +17,7 @@ const { HUD } = require('./ui/HUD');
 const { Banner } = require('./ui/Banner');
 const { Modal } = require('./ui/Modal');
 const { Layer } = require('./rendering/Layer');
+const { GAME_FLOW_STATE } = require('./GameState');
 const { strWidth, stripAnsi, padEndDisplay, center, repeatChar } = require('../../../../src/engine/rendering/ScreenBuffer');
 
 // 游戏实体
@@ -105,7 +106,7 @@ class StarHunter {
     }
 
     // Star Hunter 以菜单为入口，挂到共享 runtime 时也需要显式恢复到菜单态。
-    this.engine.setState(GAME_STATE.MENU);
+    this.engine.setState(GAME_FLOW_STATE.MENU);
 
     // 设置实体管理器
     this.engine.setEntityManager(this.entities);
@@ -141,8 +142,6 @@ class StarHunter {
 
     // 事件监听
     this._cleanupTasks.push(this.eventBus.on(GameEvents.PLAY_SOUND, (data) => this._playSound(data.type || 'hit')));
-    this._cleanupTasks.push(this.eventBus.on(GameEvents.GAME_OVER, () => this._onGameOver()));
-    this._cleanupTasks.push(this.eventBus.on(GameEvents.VICTORY, () => this._onVictory()));
   }
 
   /**
@@ -163,7 +162,7 @@ class StarHunter {
   _gameUpdate(dt, frameCount) {
     const state = this.engine.getState();
 
-    if (state !== GAME_STATE.PLAYING) return;
+    if (state !== GAME_FLOW_STATE.PLAYING) return;
 
     if (this._bossTransition) {
       this._updateMissileAutoReload();
@@ -243,17 +242,17 @@ class StarHunter {
   _render(dt, frameCount) {
     const state = this.engine.getState();
 
-    if (state === GAME_STATE.MENU) {
+    if (state === GAME_FLOW_STATE.MENU) {
       this._renderMenu();
-    } else if (state === GAME_STATE.SHIP_SELECT) {
+    } else if (state === GAME_FLOW_STATE.SHIP_SELECT) {
       this._renderShipSelect();
-    } else if (state === GAME_STATE.INSTRUCTIONS) {
+    } else if (state === GAME_FLOW_STATE.INSTRUCTIONS) {
       this._renderInstructions();
-    } else if (state === GAME_STATE.PLAYING || state === GAME_STATE.PAUSED) {
+    } else if (state === GAME_FLOW_STATE.PLAYING || state === ENGINE_STATE.PAUSED) {
       this._renderGame();
-    } else if (state === GAME_STATE.GAME_OVER) {
+    } else if (state === GAME_FLOW_STATE.GAME_OVER) {
       this._renderGameOver();
-    } else if (state === GAME_STATE.VICTORY) {
+    } else if (state === GAME_FLOW_STATE.VICTORY) {
       this._renderVictory();
     }
   }
@@ -605,21 +604,21 @@ class StarHunter {
       return;
     }
 
-    if (state === GAME_STATE.MENU) {
+    if (state === GAME_FLOW_STATE.MENU) {
       this._handleMenuKey(key);
-    } else if (state === GAME_STATE.SHIP_SELECT) {
+    } else if (state === GAME_FLOW_STATE.SHIP_SELECT) {
       this._handleShipSelectKey(key);
-    } else if (state === GAME_STATE.INSTRUCTIONS) {
+    } else if (state === GAME_FLOW_STATE.INSTRUCTIONS) {
       this._handleInstructionsKey(key);
-    } else if (state === GAME_STATE.PLAYING) {
+    } else if (state === GAME_FLOW_STATE.PLAYING) {
       if (this.modal.isActive()) {
         this._handleModalKey(key);
       } else {
         this._handlePlayingKey(key);
       }
-    } else if (state === GAME_STATE.PAUSED) {
+    } else if (state === ENGINE_STATE.PAUSED) {
       this._handleModalKey(key);
-    } else if (state === GAME_STATE.GAME_OVER || state === GAME_STATE.VICTORY) {
+    } else if (state === GAME_FLOW_STATE.GAME_OVER || state === GAME_FLOW_STATE.VICTORY) {
       this._handleEndScreenKey(key);
     }
   }
@@ -633,10 +632,10 @@ class StarHunter {
       if (this.selectedIndex === 0) {
         this._startGame();
       } else if (this.selectedIndex === 1) {
-        this.engine.setState(GAME_STATE.SHIP_SELECT);
+        this.engine.setState(GAME_FLOW_STATE.SHIP_SELECT);
         this.selectedShip = 0;
       } else if (this.selectedIndex === 2) {
-        this.engine.setState(GAME_STATE.INSTRUCTIONS);
+        this.engine.setState(GAME_FLOW_STATE.INSTRUCTIONS);
       } else if (this.selectedIndex === 3) {
         this.cleanup();
         process.exit(0);
@@ -656,13 +655,13 @@ class StarHunter {
     } else if (key === 'Enter' || key === ' ') {
       this._startGame();
     } else if (key === 'Escape') {
-      this.engine.setState(GAME_STATE.MENU);
+      this.engine.setState(GAME_FLOW_STATE.MENU);
     }
   }
 
   _handleInstructionsKey(key) {
     if (key === 'Escape' || key === 'q') {
-      this.engine.setState(GAME_STATE.MENU);
+      this.engine.setState(GAME_FLOW_STATE.MENU);
     }
   }
 
@@ -683,7 +682,7 @@ class StarHunter {
 
           if (index === 1) {
             this.engine.resume();
-            this.engine.setState(GAME_STATE.MENU);
+            this.engine.setState(GAME_FLOW_STATE.MENU);
             this.selectedIndex = 0;
             return;
           }
@@ -694,7 +693,7 @@ class StarHunter {
           }
 
           this.engine.resume();
-          this.engine.setState(GAME_STATE.MENU);
+          this.engine.setState(GAME_FLOW_STATE.MENU);
           this.selectedIndex = 0;
         }
       });
@@ -769,7 +768,7 @@ class StarHunter {
       if (this.selectedIndex === 0) {
         this._startGame();
       } else if (this.selectedIndex === 1) {
-        this.engine.setState(GAME_STATE.MENU);
+        this.engine.setState(GAME_FLOW_STATE.MENU);
         this.selectedIndex = 0;
       } else if (this.selectedIndex === 2) {
         this.cleanup();
@@ -782,7 +781,7 @@ class StarHunter {
    * 开始游戏
    */
   _startGame() {
-    this.engine.setState(GAME_STATE.PLAYING);
+    this.engine.setState(GAME_FLOW_STATE.PLAYING);
     this.score = 0;
     this.wave = 1;
     this.lives = 3;
@@ -851,7 +850,7 @@ class StarHunter {
   _onPlayerDestroyed() {
     this.lives--;
     if (this.lives <= 0) {
-      this.engine.setState(GAME_STATE.GAME_OVER);
+      this.engine.setState(GAME_FLOW_STATE.GAME_OVER);
       this.eventBus.emit('playSound', 'gameOver');
     } else {
       // 重生
@@ -1064,17 +1063,6 @@ class StarHunter {
   /**
    * 游戏结束
    */
-  _onGameOver() {
-    this.engine.setState(GAME_STATE.GAME_OVER);
-  }
-
-  /**
-   * 胜利
-   */
-  _onVictory() {
-    this.engine.setState(GAME_STATE.VICTORY);
-  }
-
   /**
    * 播放音效
    */
@@ -1165,7 +1153,7 @@ class StarHunter {
     this._bossTransition = null;
 
     if (transition.nextWave > 6) {
-      this.engine.setState(GAME_STATE.VICTORY);
+      this.engine.setState(GAME_FLOW_STATE.VICTORY);
       return;
     }
 

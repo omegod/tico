@@ -1,5 +1,6 @@
 const assert = require('assert');
 const { PhysicsWorld } = require('../../src/engine/physics/PhysicsWorld');
+const { Entity, EntityType } = require('../../src/engine/core/EntityManager');
 
 function run() {
   console.log('Testing PhysicsWorld...');
@@ -22,6 +23,28 @@ function run() {
 
   const hit = physics.raycast({ x: 0, y: 0 }, { x: 3, y: 3 });
   assert.ok(hit);
+
+  const moving = new Entity(EntityType.PARTICLE, {
+    x: 1,
+    y: 1,
+    width: 1,
+    height: 1,
+    vx: 6,
+    gravityScale: 1,
+    restitution: 0.5,
+    physicsEnabled: true
+  });
+  physics.add('particles', moving, {
+    bodyType: 'dynamic',
+    bounds: { x: 0, y: 0, width: 5, height: 5 }
+  });
+  physics.setGravity(0, 4);
+  physics.update(1000);
+
+  assert.strictEqual(moving.x, 4);
+  assert.strictEqual(moving.y, 4);
+  assert.strictEqual(moving.vx, -3);
+  assert.strictEqual(moving.vy, -2);
 
   console.log('✓ PhysicsWorld tests passed');
   return true;

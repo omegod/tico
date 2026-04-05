@@ -6,6 +6,16 @@
 const { EventBus, GameEvents } = require('./EventBus');
 
 let entityIdCounter = 0;
+const DEFAULT_TIMESTEP_MS = 1000 / 60;
+
+function toFiniteNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
 class Entity {
   constructor(type, data = {}) {
@@ -30,6 +40,32 @@ class Entity {
     this.speed = data.speed || 1;
     this.vx = data.vx || 0;
     this.vy = data.vy || 0;
+    this.ax = toFiniteNumber(data.ax, 0);
+    this.ay = toFiniteNumber(data.ay, 0);
+    this.mass = Math.max(toFiniteNumber(data.mass, 1), 0.0001);
+    this.gravityScale = toFiniteNumber(data.gravityScale, 0);
+    this.restitution = clamp(toFiniteNumber(data.restitution, 0), 0, 1);
+    this.maxSpeed = data.maxSpeed == null ? null : Math.max(0, toFiniteNumber(data.maxSpeed, 0));
+    this.bounds = data.bounds || null;
+    this.gravity = data.gravity && typeof data.gravity === 'object'
+      ? {
+          x: toFiniteNumber(data.gravity.x, 0),
+          y: toFiniteNumber(data.gravity.y, 0)
+        }
+      : null;
+    this.forceX = 0;
+    this.forceY = 0;
+    this.physicsEnabled = Boolean(
+      data.physicsEnabled ||
+      data.kinematic ||
+      this.ax !== 0 ||
+      this.ay !== 0 ||
+      this.gravityScale !== 0 ||
+      this.restitution !== 0 ||
+      this.gravity ||
+      data.mass != null ||
+      data.maxSpeed != null
+    );
 
     // 复制子弹特有属性
     if (data.isEnemy !== undefined) this.isEnemy = data.isEnemy;
@@ -64,9 +100,12 @@ class Entity {
    * 更新实体
    */
   update(dt) {
-    // 更新位置
-    this.x += this.vx;
-    this.y += this.vy;
+    if (this.physicsEnabled) {
+      this.updateKinematics(dt);
+    } else {
+      this.x += this.vx;
+      this.y += this.vy;
+    }
 
     if (this.invincibleTimer > 0) {
       this.invincibleTimer--;
@@ -84,6 +123,111 @@ class Entity {
    */
   destroy() {
     this.active = false;
+  }
+
+  setVelocity(vx, vy) {
+    this.vx = toFiniteNumber(vx, this.vx);
+    this.vy = toFiniteNumber(vy, this.vy);
+    return this;
+  }
+
+  setAcceleration(ax, ay) {
+    this.ax = toFiniteNumber(ax, this.ax);
+    this.ay = toFiniteNumber(ay, this.ay);
+    this.physicsEnabled = true;
+    return this;
+  }
+
+  setGravity(x, y) {
+    this.gravity = {
+      x: toFiniteNumber(x, 0),
+      y: toFiniteNumber(y, 0)
+    };
+    this.physicsEnabled = true;
+    return this;
+  }
+
+  setBounds(bounds) {
+    this.bounds = bounds || null;
+    return this;
+  }
+
+  applyForce(fx, fy) {
+    this.forceX += toFiniteNumber(fx, 0);
+    this.forceY += toFiniteNumber(fy, 0);
+    this.physicsEnabled = true;
+    return this;
+  }
+
+  applyImpulse(ix, iy) {
+    this.vx += toFiniteNumber(ix, 0) / this.mass;
+    this.vy += toFiniteNumber(iy, 0) / this.mass;
+    this.physicsEnabled = true;
+    return this;
+  }
+
+  clearForces() {
+    this.forceX = 0;
+    this.forceY = 0;
+    return this;
+  }
+
+  updateKinematics(dt, options = {}) {
+    const stepMs = Number.isFinite(dt) ? dt : DEFAULT_TIMESTEP_MS;
+    const deltaSeconds = stepMs / 1000;
+    if (deltaSeconds <= 0) {
+      return this;
+    }
+
+    const gravitySource = options.gravity || this.gravity;
+    const gravityX = gravitySource ? toFiniteNumber(gravitySource.x, 0) * this.gravityScale : 0;
+    const gravityY = gravitySource ? toFiniteNumber(gravitySource.y, 0) * this.gravityScale : 0;
+    const totalAx = this.ax + (this.forceX / this.mass) + gravityX;
+    const totalAy = this.ay + (this.forceY / this.mass) + gravityY;
+
+    this.vx += totalAx * deltaSeconds;
+    this.vy += totalAy * deltaSeconds;
+
+    if (this.maxSpeed != null) {
+      const speed = Math.hypot(this.vx, this.vy);
+      if (speed > this.maxSpeed && speed > 0) {
+        const scale = this.maxSpeed / speed;
+        this.vx *= scale;
+        this.vy *= scale;
+      }
+    }
+
+    this.x += this.vx * deltaSeconds;
+    this.y += this.vy * deltaSeconds;
+
+    this._resolveBounds(options.bounds || this.bounds);
+    this.clearForces();
+    return this;
+  }
+
+  _resolveBounds(bounds) {
+    if (!bounds) return;
+
+    const minX = toFiniteNumber(bounds.x, 0);
+    const minY = toFiniteNumber(bounds.y, 0);
+    const maxX = Number.isFinite(bounds.width) ? minX + bounds.width - this.width : null;
+    const maxY = Number.isFinite(bounds.height) ? minY + bounds.height - this.height : null;
+
+    if (this.x < minX) {
+      this.x = minX;
+      this.vx = this.restitution > 0 ? Math.abs(this.vx) * this.restitution : 0;
+    } else if (maxX != null && this.x > maxX) {
+      this.x = maxX;
+      this.vx = this.restitution > 0 ? -Math.abs(this.vx) * this.restitution : 0;
+    }
+
+    if (this.y < minY) {
+      this.y = minY;
+      this.vy = this.restitution > 0 ? Math.abs(this.vy) * this.restitution : 0;
+    } else if (maxY != null && this.y > maxY) {
+      this.y = maxY;
+      this.vy = this.restitution > 0 ? -Math.abs(this.vy) * this.restitution : 0;
+    }
   }
 }
 
