@@ -1,4 +1,4 @@
-const { Layer } = require('../../../../../src/engine/rendering/Layer');
+const { Layer } = require('../rendering/Layer');
 const { PanelWidget } = require('../../../../../src/engine/widgets/PanelWidget');
 const { TextWidget } = require('../../../../../src/engine/widgets/TextWidget');
 const { BarWidget } = require('../../../../../src/engine/widgets/BarWidget');

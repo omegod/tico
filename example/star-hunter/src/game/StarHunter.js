@@ -11,12 +11,12 @@ const { EventBus, GameEvents } = require('../../../../src/engine/core/EventBus')
 const { EntityManager } = require('../../../../src/engine/core/EntityManager');
 const { CollisionSystem } = require('../../../../src/engine/core/CollisionSystem');
 const { Renderer, COLORS } = require('../../../../src/engine/rendering/Renderer');
-const { Layer } = require('../../../../src/engine/rendering/Layer');
 const { InputHandler } = require('../../../../src/engine/input/InputHandler');
 const { KeyMapping, getAction } = require('../../../../src/engine/input/KeyMapping');
 const { HUD } = require('./ui/HUD');
 const { Banner } = require('./ui/Banner');
 const { Modal } = require('./ui/Modal');
+const { Layer } = require('./rendering/Layer');
 const { strWidth, stripAnsi, padEndDisplay, center, repeatChar } = require('../../../../src/engine/rendering/ScreenBuffer');
 
 // 游戏实体

@@ -15,8 +15,8 @@ function run() {
 
   renderer.clear();
   renderer.drawCell(2, 1, 'A', COLORS.green, true, Layer.PLAYER);
-  renderer.drawString(3, 1, 'Hi', COLORS.red, false, Layer.HUD);
-  renderer.drawText(0, 2, ['L1', 'L2'], COLORS.blue, false, Layer.HUD);
+  renderer.drawString(3, 1, 'Hi', COLORS.red, false, 100);
+  renderer.drawText(0, 2, ['L1', 'L2'], COLORS.blue, false, 100);
   renderer.drawArt(1, 4, ['@@'], COLORS.yellow, true, Layer.PLAYER);
   renderer.fillRect(0, 0, 2, 1, '.', COLORS.dim, false, Layer.BACKGROUND);
   renderer.renderBackground();

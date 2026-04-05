@@ -787,12 +787,11 @@ my-game/
 | `BULLETS` | 子弹层。 |
 | `PLAYER` | 玩家层。 |
 | `SHIELD` | 护盾叠层。 |
-| `HUD` | HUD 层。 |
-| `BANNER` | 横幅层。 |
-| `MODAL` | 弹窗层。 |
 | `CURSOR` | 最高优先级光标 / 选中层。 |
 
 工具函数：`Layer.compare(a, b)` 返回 `a - b`。
+
+像 HUD、横幅、弹窗栈这类项目级覆盖层，建议由具体游戏或示例自行定义层级，而不是放在引擎核心里。
 
 #### `Camera2D`
 

@@ -1,4 +1,4 @@
-const { Layer } = require('../../../../../src/engine/rendering/Layer');
+const { Layer } = require('../rendering/Layer');
 const { DialogWidget } = require('../../../../../src/engine/widgets/DialogWidget');
 
 class Modal {

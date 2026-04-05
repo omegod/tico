@@ -4,6 +4,9 @@ const path = require('path');
 const { Scene } = require('../../../src/engine/scene/Scene');
 const { COLORS, Layer } = require('../../../src/engine/rendering/Renderer');
 
+const UI_LAYER = 100;
+const MODAL_LAYER = 300;
+
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
 const CELL_WIDTH = 2;
@@ -155,13 +158,13 @@ class TetrisScene extends Scene {
 
     if (this.mode === 'paused') {
       this._drawSolidModalBox(renderer, 22, 11, 36, 7, '游戏暂停', COLORS.orange, COLORS.bgBlack);
-      renderer.drawString(28, 13, 'P / Esc 继续', COLORS.brightWhite, true, Layer.MODAL, COLORS.bgBlack);
-      renderer.drawString(27, 14, 'Q 返回菜单', COLORS.brightWhite, false, Layer.MODAL, COLORS.bgBlack);
+      renderer.drawString(28, 13, 'P / Esc 继续', COLORS.brightWhite, true, MODAL_LAYER, COLORS.bgBlack);
+      renderer.drawString(27, 14, 'Q 返回菜单', COLORS.brightWhite, false, MODAL_LAYER, COLORS.bgBlack);
     } else if (this.mode === 'gameover') {
       this._drawSolidModalBox(renderer, 22, 11, 36, 7, 'STACK OVERLOAD', COLORS.red, COLORS.bgBlack);
-      renderer.drawString(25, 13, '堆叠已经顶到上边界', COLORS.brightWhite, true, Layer.MODAL, COLORS.bgBlack);
-      renderer.drawString(24, 14, 'Enter / R 重新开始', COLORS.yellow, false, Layer.MODAL, COLORS.bgBlack);
-      renderer.drawString(24, 15, 'Esc / Q 返回菜单', COLORS.yellow, false, Layer.MODAL, COLORS.bgBlack);
+      renderer.drawString(25, 13, '堆叠已经顶到上边界', COLORS.brightWhite, true, MODAL_LAYER, COLORS.bgBlack);
+      renderer.drawString(24, 14, 'Enter / R 重新开始', COLORS.yellow, false, MODAL_LAYER, COLORS.bgBlack);
+      renderer.drawString(24, 15, 'Esc / Q 返回菜单', COLORS.yellow, false, MODAL_LAYER, COLORS.bgBlack);
     }
   }
 
@@ -482,13 +485,13 @@ class TetrisScene extends Scene {
   }
 
   _drawHeader(renderer) {
-    renderer.drawString(4, 1, 'Tetris / Terminal Cabinet', COLORS.orange, true, Layer.HUD);
-    renderer.drawString(4, 2, '原始命令行俄罗斯方块样例', COLORS.dim, false, Layer.HUD);
+    renderer.drawString(4, 1, 'Tetris / Terminal Cabinet', COLORS.orange, true, UI_LAYER);
+    renderer.drawString(4, 2, '原始命令行俄罗斯方块样例', COLORS.dim, false, UI_LAYER);
   }
 
   _renderMenu(renderer) {
     this._drawBox(renderer, 4, 4, 24, 14, '主菜单', COLORS.orange);
-    renderer.drawString(7, 7, '请选择操作', COLORS.brightWhite, true, Layer.HUD);
+    renderer.drawString(7, 7, '请选择操作', COLORS.brightWhite, true, UI_LAYER);
 
     this.menuItems.forEach((item, index) => {
       const selected = index === this.selectedMenuIndex;
@@ -499,35 +502,35 @@ class TetrisScene extends Scene {
         prefix + item,
         selected ? COLORS.brightYellow : COLORS.brightWhite,
         selected,
-        Layer.HUD
+        UI_LAYER
       );
     });
 
-    renderer.drawString(7, 16, 'Enter 确认 / Q 退出', COLORS.dim, false, Layer.HUD);
+    renderer.drawString(7, 16, 'Enter 确认 / Q 退出', COLORS.dim, false, UI_LAYER);
     this._drawBox(renderer, 32, 4, 44, 14, '状态', COLORS.orange);
-    renderer.drawString(35, 7, '7-bag 随机', COLORS.brightCyan, true, Layer.HUD);
-    renderer.drawString(35, 9, '幽灵方块落点', COLORS.brightCyan, false, Layer.HUD);
-    renderer.drawString(35, 11, '暂停 / 继续', COLORS.brightCyan, false, Layer.HUD);
-    renderer.drawString(35, 13, '记录会保存在本地 JSON', COLORS.brightCyan, false, Layer.HUD);
+    renderer.drawString(35, 7, '7-bag 随机', COLORS.brightCyan, true, UI_LAYER);
+    renderer.drawString(35, 9, '幽灵方块落点', COLORS.brightCyan, false, UI_LAYER);
+    renderer.drawString(35, 11, '暂停 / 继续', COLORS.brightCyan, false, UI_LAYER);
+    renderer.drawString(35, 13, '记录会保存在本地 JSON', COLORS.brightCyan, false, UI_LAYER);
     renderer.drawString(
       35,
       15,
       this._menuPulseVisible ? 'app.time.every() 驱动菜单提示闪烁' : '                                 ',
       this._menuPulseVisible ? COLORS.brightYellow : COLORS.dim,
       false,
-      Layer.HUD
+      UI_LAYER
     );
-    renderer.drawString(35, 16, 'WASD 或 方向键都可操作', COLORS.dim, false, Layer.HUD);
+    renderer.drawString(35, 16, 'WASD 或 方向键都可操作', COLORS.dim, false, UI_LAYER);
   }
 
   _renderRecords(renderer) {
     this._drawBox(renderer, 4, 4, 72, 20, '游戏记录', COLORS.orange);
 
     const records = this._loadRecords();
-    renderer.drawString(7, 7, 'Top 10 Records', COLORS.brightWhite, true, Layer.HUD);
+    renderer.drawString(7, 7, 'Top 10 Records', COLORS.brightWhite, true, UI_LAYER);
 
     if (!records.length) {
-      renderer.drawString(7, 10, '暂无记录', COLORS.dim, false, Layer.HUD);
+      renderer.drawString(7, 10, '暂无记录', COLORS.dim, false, UI_LAYER);
     } else {
       records.slice(0, 10).forEach((record, index) => {
         const line = [
@@ -537,15 +540,15 @@ class TetrisScene extends Scene {
           `Lv:${String(record.level || 1).padStart(2, '0')}`,
           formatDate(record.date)
         ].join('  ');
-        renderer.drawString(7, 9 + index, line, COLORS.brightWhite, index === 0, Layer.HUD);
+        renderer.drawString(7, 9 + index, line, COLORS.brightWhite, index === 0, UI_LAYER);
       });
     }
 
-    renderer.drawString(7, 25, 'Esc / Q 返回菜单', COLORS.dim, false, Layer.HUD);
-    renderer.drawString(45, 7, '说明', COLORS.brightWhite, true, Layer.HUD);
-    renderer.drawString(45, 9, '记录按最新优先保存。', COLORS.brightCyan, false, Layer.HUD);
-    renderer.drawString(45, 11, '同样支持中文显示。', COLORS.brightCyan, false, Layer.HUD);
-    renderer.drawString(45, 13, '这个样例直接对应原始项目。', COLORS.brightCyan, false, Layer.HUD);
+    renderer.drawString(7, 25, 'Esc / Q 返回菜单', COLORS.dim, false, UI_LAYER);
+    renderer.drawString(45, 7, '说明', COLORS.brightWhite, true, UI_LAYER);
+    renderer.drawString(45, 9, '记录按最新优先保存。', COLORS.brightCyan, false, UI_LAYER);
+    renderer.drawString(45, 11, '同样支持中文显示。', COLORS.brightCyan, false, UI_LAYER);
+    renderer.drawString(45, 13, '这个样例直接对应原始项目。', COLORS.brightCyan, false, UI_LAYER);
   }
 
   _renderGame(renderer) {
@@ -620,7 +623,7 @@ class TetrisScene extends Scene {
         EMPTY_CELL,
         null,
         false,
-        Layer.HUD,
+        UI_LAYER,
         PIECE_STYLES[this.nextPiece.shape.name].bg
       );
     }
@@ -629,18 +632,18 @@ class TetrisScene extends Scene {
   _drawStats(renderer, x, y) {
     const pace = Math.round(1000 / this.dropInterval);
 
-    renderer.drawString(x, y, 'SCORE', COLORS.dim, false, Layer.HUD);
-    renderer.drawString(x + 9, y, String(this.score).padStart(6, '0'), COLORS.brightYellow, true, Layer.HUD);
-    renderer.drawString(x, y + 2, 'LINES', COLORS.dim, false, Layer.HUD);
-    renderer.drawString(x + 9, y + 2, String(this.lines).padStart(2, '0'), COLORS.brightCyan, true, Layer.HUD);
-    renderer.drawString(x, y + 4, 'LEVEL', COLORS.dim, false, Layer.HUD);
-    renderer.drawString(x + 9, y + 4, String(this.level).padStart(2, '0'), COLORS.brightGreen, true, Layer.HUD);
-    renderer.drawString(x, y + 6, 'PACE', COLORS.dim, false, Layer.HUD);
-    renderer.drawString(x + 9, y + 6, `${pace} u/s`, COLORS.brightWhite, true, Layer.HUD);
+    renderer.drawString(x, y, 'SCORE', COLORS.dim, false, UI_LAYER);
+    renderer.drawString(x + 9, y, String(this.score).padStart(6, '0'), COLORS.brightYellow, true, UI_LAYER);
+    renderer.drawString(x, y + 2, 'LINES', COLORS.dim, false, UI_LAYER);
+    renderer.drawString(x + 9, y + 2, String(this.lines).padStart(2, '0'), COLORS.brightCyan, true, UI_LAYER);
+    renderer.drawString(x, y + 4, 'LEVEL', COLORS.dim, false, UI_LAYER);
+    renderer.drawString(x + 9, y + 4, String(this.level).padStart(2, '0'), COLORS.brightGreen, true, UI_LAYER);
+    renderer.drawString(x, y + 6, 'PACE', COLORS.dim, false, UI_LAYER);
+    renderer.drawString(x + 9, y + 6, `${pace} u/s`, COLORS.brightWhite, true, UI_LAYER);
   }
 
   _drawControls(renderer, x, y) {
-    renderer.drawString(x, y, '操作', COLORS.brightWhite, true, Layer.HUD);
+    renderer.drawString(x, y, '操作', COLORS.brightWhite, true, UI_LAYER);
     const lines = [
       'A/D 或 ←→ 平移',
       'W / ↑ 旋转',
@@ -649,7 +652,7 @@ class TetrisScene extends Scene {
     ];
 
     lines.forEach((line, index) => {
-      renderer.drawString(x, y + 2 + index, line, COLORS.brightCyan, false, Layer.HUD);
+      renderer.drawString(x, y + 2 + index, line, COLORS.brightCyan, false, UI_LAYER);
     });
   }
 
@@ -661,7 +664,7 @@ class TetrisScene extends Scene {
       footerText,
       this._statusText ? COLORS.brightYellow : COLORS.dim,
       false,
-      Layer.HUD
+      UI_LAYER
     );
   }
 
@@ -698,14 +701,14 @@ class TetrisScene extends Scene {
   _drawBox(renderer, x, y, width, height, title, color) {
     if (width < 2 || height < 2) return;
 
-    renderer.drawString(x, y, `┌${'─'.repeat(width - 2)}┐`, color, true, Layer.HUD);
+    renderer.drawString(x, y, `┌${'─'.repeat(width - 2)}┐`, color, true, UI_LAYER);
     for (let row = 1; row < height - 1; row++) {
       renderer.drawString(x, y + row, `│${' '.repeat(width - 2)}│`, color, false, Layer.BACKGROUND);
     }
-    renderer.drawString(x, y + height - 1, `└${'─'.repeat(width - 2)}┘`, color, true, Layer.HUD);
+    renderer.drawString(x, y + height - 1, `└${'─'.repeat(width - 2)}┘`, color, true, UI_LAYER);
 
     if (title) {
-      renderer.drawString(x + 2, y, title, color, true, Layer.HUD);
+      renderer.drawString(x + 2, y, title, color, true, UI_LAYER);
     }
   }
 
@@ -716,15 +719,15 @@ class TetrisScene extends Scene {
   _drawSolidModalBox(renderer, x, y, width, height, title, color, fillColor) {
     if (width < 2 || height < 2) return;
 
-    renderer.fillRect(x, y, width, height, ' ', null, false, Layer.MODAL, fillColor);
-    renderer.drawString(x, y, `┌${'─'.repeat(width - 2)}┐`, color, true, Layer.MODAL, fillColor);
+    renderer.fillRect(x, y, width, height, ' ', null, false, MODAL_LAYER, fillColor);
+    renderer.drawString(x, y, `┌${'─'.repeat(width - 2)}┐`, color, true, MODAL_LAYER, fillColor);
     for (let row = 1; row < height - 1; row++) {
-      renderer.drawString(x, y + row, `│${' '.repeat(width - 2)}│`, color, false, Layer.MODAL, fillColor);
+      renderer.drawString(x, y + row, `│${' '.repeat(width - 2)}│`, color, false, MODAL_LAYER, fillColor);
     }
-    renderer.drawString(x, y + height - 1, `└${'─'.repeat(width - 2)}┘`, color, true, Layer.MODAL, fillColor);
+    renderer.drawString(x, y + height - 1, `└${'─'.repeat(width - 2)}┘`, color, true, MODAL_LAYER, fillColor);
 
     if (title) {
-      renderer.drawString(x + 2, y, title, color, true, Layer.MODAL, fillColor);
+      renderer.drawString(x + 2, y, title, color, true, MODAL_LAYER, fillColor);
     }
   }
 

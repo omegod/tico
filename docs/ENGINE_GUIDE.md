@@ -787,12 +787,11 @@ Methods:
 | `BULLETS` | Bullet sprites. |
 | `PLAYER` | Player ship. |
 | `SHIELD` | Shield overlay. |
-| `HUD` | HUD layer. |
-| `BANNER` | Banner overlay. |
-| `MODAL` | Modal overlay. |
 | `CURSOR` | Highest-priority cursor or selection layer. |
 
 Utility: `Layer.compare(a, b)` returns `a - b`.
+
+Project-specific overlay layers such as HUDs, banners, and modal stacks should now be defined by each game or example instead of the engine core.
 
 #### `Camera2D`
 

@@ -17,7 +17,7 @@ This repository is intended for open-source release as `@omgod/tico` on npm and 
 - Camera-aware terminal rendering
 - Input handling and action mapping
 - Lightweight resources, animation, and physics layers
-- Built-in UI helpers such as `HUD`, `Banner`, and `Modal`
+- Layout helpers and composable widgets for game-specific UI
 - Example games for quick validation
 
 ## Install
@@ -47,7 +47,7 @@ class HelloScene extends Scene {
       text: 'tico',
       color: COLORS.brightCyan,
       bold: true,
-      layer: Layer.HUD
+      layer: 100
     });
 
     this.ship = new SpriteNode({
@@ -104,7 +104,7 @@ The package root re-exports the engine surface from `src/engine/index.js`.
 - Systems: `EventBus`, `GameEvents`, `EntityManager`, `Entity`, `EntityType`, `CollisionSystem`, `PhysicsWorld`
 - Input: `InputHandler`, `InputActionContext`, `ActionMap`, `KeyMapping`, `getAction`, `matches`
 - Rendering: `Renderer`, `COLORS`, `Layer`, `Camera2D`, `ScreenBuffer`
-- Content and UX: `ResourceManager`, `AnimationPlayer`, `Tween`, `EASING`, `HUD`, `Banner`, `Modal`
+- Content, layout, and widgets: `ResourceManager`, `AnimationPlayer`, `Tween`, `EASING`, `BORDER_STYLES`, `measureText`, `measureLines`, `PanelWidget`, `DialogWidget`, `TextWidget`, `BarWidget`, `MenuWidget`
 
 ## Project Structure
 
@@ -121,7 +121,8 @@ src/engine/
   rendering/            terminal renderer and frame buffer
   resources/            resource cache and loaders
   scene/                Scene and SceneManager
-  ui/                   terminal UI widgets
+  layout/               width-aware layout helpers
+  widgets/              composable terminal UI widgets
 tests/                  engine and sample tests
 ```
 
