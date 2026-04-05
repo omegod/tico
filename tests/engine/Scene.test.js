@@ -36,10 +36,24 @@ function run() {
     stdout,
     renderer: new Renderer(20, 10, stdout),
     animations: new AnimationPlayer(),
+    time: {
+      cancelledOwners: [],
+      cancelByOwner(owner) {
+        this.cancelledOwners.push(owner);
+      }
+    },
     engine: {
       registered: [],
-      registerSystem(system) { this.registered.push(system); },
+      registerCalls: [],
+      registerSystem(system, options) {
+        this.registered.push(system);
+        this.registerCalls.push({ system, options });
+      },
       unregisterSystem(system) { this.registered = this.registered.filter((item) => item !== system); },
+      unregisterSystemsByOwner(owner) {
+        this.registered = this.registered.filter((item) => item !== scene._runtimeSystem);
+        this.lastOwner = owner;
+      },
       onRender(callback) { this.renderCallback = callback; }
     },
     input: {
@@ -61,6 +75,8 @@ function run() {
 
   assert.strictEqual(scene.entered, 1);
   assert.strictEqual(app.engine.registered.length, 1);
+  assert.strictEqual(app.engine.registerCalls[0].options.owner, scene);
+  assert.strictEqual(app.engine.registerCalls[0].options.priority, 0);
 
   app.engine.registered[0].fixedUpdate(16, 1);
   app.engine.registered[0].update(16, 1, {});
@@ -76,6 +92,8 @@ function run() {
   scene.exit();
   assert.strictEqual(scene.exited, 1);
   assert.strictEqual(app.engine.registered.length, 0);
+  assert.strictEqual(app.engine.lastOwner, scene);
+  assert.deepStrictEqual(app.time.cancelledOwners, [scene]);
   assert.strictEqual(app.renderer.getCamera(), null);
 
   scene.detach();

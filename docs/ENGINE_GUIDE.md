@@ -33,6 +33,7 @@ const {
   InputHandler,
   Renderer,
   ResourceManager,
+  EngineTime,
   AnimationPlayer,
   PhysicsWorld,
   COLORS,
@@ -50,7 +51,7 @@ const { EngineApp, Scene } = require('./src');
 
 The package root re-exports the engine surface from `src/engine/index.js`.
 
-- App and loop: `EngineApp`, `GameEngine`, `GAME_STATE`
+- App and loop: `EngineApp`, `GameEngine`, `GAME_STATE`, `EngineTime`
 - Core: `EventBus`, `GameEvents`, `EntityManager`, `Entity`, `EntityType`, `CollisionSystem`
 - Scene graph: `Scene`, `SceneManager`, `Node2D`, `SpriteNode`, `TextNode`, `TilemapNode`
 - Input: `InputHandler`, `InputActionContext`, `ActionMap`, `KeyMapping`, `getAction`, `matches`
@@ -62,6 +63,7 @@ The package root re-exports the engine surface from `src/engine/index.js`.
 `EngineApp` assembles the runtime:
 
 - `engine` for the game loop and state
+- `time` for a unified gameplay clock and scheduler
 - `renderer` for terminal drawing
 - `input` for keyboard events
 - `resources` for cached content
@@ -77,6 +79,62 @@ Important methods:
 - `switchScene(name)`
 - `stop()`
 - `getRuntime()`
+
+### Time and Scheduling
+
+`app.time` is the engine-facing gameplay clock. It tracks scaled time, frame metadata, and delayed work that should follow the engine pause/time-scale rules.
+
+Common methods:
+
+- `now()`
+- `delta()`
+- `unscaledDelta()`
+- `after(ms, callback, options)`
+- `every(ms, callback, options)`
+- `nextFrame(callback, options)`
+- `cancel(handle)`
+- `cancelByOwner(owner)`
+
+Use `owner: this` from a `Scene` or system-like object so the engine can clean up those tasks when the scene unbinds.
+
+```js
+app.time.every(250, () => {
+  this.cursorVisible = !this.cursorVisible;
+}, { owner: this });
+
+app.time.after(1200, () => {
+  this.statusText = '';
+}, { owner: this });
+```
+
+### Systems
+
+`GameEngine` also acts as a lightweight system scheduler. Systems are plain objects with optional lifecycle hooks and update methods.
+
+Common hooks:
+
+- `onAttach(engine, info)`
+- `onEnable(engine, info)`
+- `fixedUpdate(dt, frameCount)`
+- `update(dt, frameCount, meta)`
+- `onDisable(engine, info)`
+- `onDetach(engine, info)`
+
+Register systems with optional metadata:
+
+```js
+app.engine.registerSystem(debugSystem, {
+  owner: this,
+  priority: 50,
+  id: 'debug:overlay'
+});
+```
+
+Notes:
+
+- Lower `priority` runs earlier.
+- `owner` lets scenes or modules clean up their systems in one call.
+- Explicit dependency ordering is not part of the public engine surface yet, so prefer a small number of systems with clear priorities.
 
 ## 5. Scene Lifecycle
 
@@ -96,6 +154,7 @@ Options:
 - `managed` controls whether the scene binds itself to the engine runtime
 - `autoClear` controls whether the renderer clears each frame
 - `autoPresent` controls whether the frame is written to stdout automatically
+- `systemPriority` controls where the scene runtime sits inside the engine system list
 
 Example:
 
@@ -189,6 +248,15 @@ Specialized nodes:
 - `TextNode` for text labels
 - `TilemapNode` for grid maps
 
+### Entity and Node Roles
+
+`Node2D` and `Entity` intentionally serve different jobs:
+
+- Use `Node2D` for scene-tree composition, transforms, and rendering.
+- Use `Entity` for gameplay state, collision data, tags, and lifetime.
+
+In other words, `Node2D` is presentation-first while `Entity` is gameplay-first. If a gameplay object needs both, prefer composition or a small adapter layer instead of merging the two models directly.
+
 ## 9. Resources
 
 `ResourceManager` provides a small cache for text and JSON data.
@@ -277,6 +345,7 @@ This section documents the public symbols exported by `src/engine/index.js`.
 | `stdout` | stream | `process.stdout` | Destination for terminal output. |
 | `eventBus` | `EventBus` | new instance | Shared event bus. |
 | `engine` | `GameEngine` | new instance | Custom engine instance. |
+| `time` | `EngineTime` | `engine.time` | Shared gameplay clock and scheduler. |
 | `entities` | `EntityManager` | new instance | Entity container used by scenes and systems. |
 | `renderer` | `Renderer` | new instance | ASCII renderer. |
 | `input` | `InputHandler` | new instance | Keyboard handler. |
@@ -290,7 +359,7 @@ Methods:
 
 | Method | Input | Output | Description |
 |---|---|---|---|
-| `getRuntime()` | none | object | Returns the current runtime bundle (`width`, `height`, `stdout`, `engine`, `entities`, `renderer`, `input`, `resources`, `animations`, `physics`). |
+| `getRuntime()` | none | object | Returns the current runtime bundle (`width`, `height`, `stdout`, `engine`, `time`, `entities`, `renderer`, `input`, `resources`, `animations`, `physics`). |
 | `addScene(name, scene)` | `name: string`, `scene: Scene` | `this` | Registers a scene and attaches the app to it. |
 | `start(sceneName)` | `sceneName: string` | `this` | Initializes terminal input, binds cleanup handlers, starts the scene, and starts the engine loop. |
 | `switchScene(name)` | `name: string` | `this` | Switches to another registered scene. |
@@ -311,6 +380,7 @@ Methods:
 | `timeScale` | number | `1` | Global speed multiplier. |
 | `initialState` | string | `GAME_STATE.BOOT` | Initial engine state. |
 | `eventBus` | `EventBus` | new instance | Shared event bus. |
+| `time` | `EngineTime` | new instance | Shared gameplay clock and scheduler. |
 
 Returns: `GameEngine`
 
@@ -340,8 +410,10 @@ Methods:
 | `resume()` | none | `void` | Restores the previous state after pause. |
 | `togglePause()` | none | `void` | Toggles pause and resume. |
 | `setState(newState)` | `newState: string` | `string` | Sets state and returns the previous state. |
-| `registerSystem(system)` | `system: { update?, fixedUpdate? }` | `void` | Adds a system to the engine update list. |
+| `registerSystem(system, options)` | `system: { onAttach?, onEnable?, update?, fixedUpdate?, onDisable?, onDetach? }`, `options?: { priority?, owner?, id?, enabled? }` | `system` | Adds a system to the engine update list and applies optional scheduling metadata. |
 | `unregisterSystem(system)` | `system: object` | `void` | Removes a system from the engine update list. |
+| `unregisterSystemsByOwner(owner)` | `owner: any` | `number` | Removes all systems registered by one owner token. |
+| `setSystemEnabled(system, enabled)` | `system: object`, `enabled?: boolean` | `boolean` | Enables or disables one registered system. |
 | `setEntityManager(entityManager)` | `entityManager: EntityManager` | `void` | Binds the engine to an entity manager. |
 | `setTimeScale(scale)` | `scale: number` | `void` | Sets the global simulation speed. |
 | `setFixedDelta(delta)` | `delta: number` | `void` | Sets the fixed update step. |
@@ -365,6 +437,7 @@ Methods:
 | `options.managed` | boolean | `true` | Whether the scene binds itself into the engine runtime. |
 | `options.autoClear` | boolean | `true` | Whether the renderer clears every frame. |
 | `options.autoPresent` | boolean | `true` | Whether the frame is written to `stdout` automatically. |
+| `options.systemPriority` | number | `0` | Priority used when the scene runtime registers itself as an engine system. |
 
 Returns: `Scene`
 
@@ -894,6 +967,30 @@ Methods:
 
 Metadata created by the loader methods includes `type` (`text` or `json`) and `filePath`.
 
+#### `EngineTime`
+
+`new EngineTime()`
+
+Methods:
+
+| Method | Input | Output | Description |
+|---|---|---|---|
+| `initialize(now)` | `now?: number` | `void` | Resets frame bookkeeping when the engine loop starts. Existing scheduled tasks remain registered. |
+| `now()` | none | `number` | Returns scaled gameplay time in milliseconds. |
+| `realNow()` | none | `number` | Returns the latest wall-clock timestamp seen by the engine loop. |
+| `delta()` | none | `number` | Returns the current scaled frame delta. |
+| `unscaledDelta()` | none | `number` | Returns the current frame delta before time scaling. |
+| `fixedDelta()` | none | `number` | Returns the fixed-step size used for the latest frame. |
+| `alpha()` | none | `number` | Returns the interpolation alpha for the latest frame. |
+| `frame()` | none | `number` | Returns the current frame index. |
+| `isPaused()` | none | `boolean` | Returns whether the latest frame advanced while paused. |
+| `after(delay, callback, options)` | `delay: number`, `callback(ctx)`, `options?: { owner?, scaled? }` | task handle | Schedules one callback after a delay. |
+| `every(interval, callback, options)` | `interval: number`, `callback(ctx)`, `options?: { owner?, scaled? }` | task handle | Schedules a repeating callback. Return `false` from the callback to stop it. |
+| `nextFrame(callback, options)` | `callback(ctx)`, `options?: { owner? }` | task handle | Schedules one callback on the next engine frame. |
+| `cancel(handle)` | task handle or id | `boolean` | Cancels one scheduled task. |
+| `cancelByOwner(owner)` | `owner: any` | `number` | Cancels all scheduled tasks associated with one owner token. |
+| `clear()` | none | `void` | Removes all scheduled tasks. |
+
 #### `AnimationPlayer`
 
 `new AnimationPlayer()`
@@ -999,9 +1096,12 @@ Methods:
 - Keep constructors focused on static configuration.
 - Reset run-specific state in `onEnter()`.
 - Use `EntityManager` for ownership and cleanup, not ad-hoc arrays.
+- Use `Node2D` for presentation trees and `Entity` for gameplay state; bridge them instead of merging them by default.
 - Use `ActionMap` or `KeyMapping` for game actions instead of raw key checks.
 - Prefer `Layer` values over hard-coded render priorities.
 - Use `EventBus` for gameplay events that cross systems or scenes.
+- Prefer `app.time` over raw `setTimeout()` or `Date.now()` for gameplay scheduling.
+- Prefer `owner` + `priority` when registering systems so teardown and execution order stay explicit.
 - Put real-time logic in `onUpdate`
 - Put fixed-step logic in `onFixedUpdate`
 - Put transient overlays and UI in `onRender`

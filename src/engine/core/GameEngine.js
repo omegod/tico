@@ -4,6 +4,7 @@
  */
 
 const { EventBus, GameEvents } = require('./EventBus');
+const { EngineTime } = require('./EngineTime');
 
 const GAME_STATE = {
   BOOT: 'boot',
@@ -36,7 +37,10 @@ class GameEngine {
     this.accumulator = 0;
 
     this.eventBus = options.eventBus || new EventBus();
+    this.time = options.time || new EngineTime();
     this.systems = [];
+    this._systemEntries = [];
+    this._nextSystemId = 1;
     this.entities = null; // EntityManager
     this.renderCallback = null; // 每帧渲染回调
 
@@ -58,6 +62,7 @@ class GameEngine {
     this.frameCount = 0;
     this.lastFrameTime = Date.now();
     this.accumulator = 0;
+    this.time.initialize(this.lastFrameTime);
     this.eventBus.emit(GameEvents.GAME_START, { timestamp: this.lastFrameTime });
   }
 
@@ -70,6 +75,9 @@ class GameEngine {
     if (this.loopTimeout) {
       clearTimeout(this.loopTimeout);
       this.loopTimeout = null;
+    }
+    if (this.time) {
+      this.time.clear();
     }
     this.eventBus.clear();
   }
@@ -129,9 +137,25 @@ class GameEngine {
    * 注册游戏系统
    * @param {Object} system - 系统对象，需要有 update(dt) 方法
    */
-  registerSystem(system) {
-    if (!system || this.systems.includes(system)) return;
-    this.systems.push(system);
+  registerSystem(system, options = {}) {
+    if (!system || this._findSystemEntry(system)) return system;
+
+    const entry = {
+      id: options.id || system.id || `system:${this._nextSystemId++}`,
+      owner: options.owner !== undefined ? options.owner : (system.owner || null),
+      priority: this._resolveSystemPriority(system, options),
+      enabled: options.enabled !== undefined ? options.enabled !== false : system.enabled !== false,
+      order: this._systemEntries.length,
+      system
+    };
+
+    this._systemEntries.push(entry);
+    this._refreshSystems();
+    this._callSystemHook(entry, 'onAttach');
+    if (entry.enabled) {
+      this._callSystemHook(entry, 'onEnable');
+    }
+    return system;
   }
 
   /**
@@ -139,10 +163,51 @@ class GameEngine {
    * @param {Object} system - 系统对象
    */
   unregisterSystem(system) {
-    const index = this.systems.indexOf(system);
-    if (index !== -1) {
-      this.systems.splice(index, 1);
+    const entry = this._findSystemEntry(system);
+    if (!entry) return;
+
+    if (entry.enabled) {
+      this._callSystemHook(entry, 'onDisable');
     }
+    this._callSystemHook(entry, 'onDetach');
+    this._systemEntries = this._systemEntries.filter((item) => item !== entry);
+    this._refreshSystems();
+  }
+
+  unregisterSystemsByOwner(owner) {
+    if (owner === undefined || owner === null) return 0;
+
+    const entries = this._systemEntries.filter((entry) => entry.owner === owner);
+    if (!entries.length) return 0;
+
+    for (const entry of entries) {
+      if (entry.enabled) {
+        this._callSystemHook(entry, 'onDisable');
+      }
+      this._callSystemHook(entry, 'onDetach');
+    }
+
+    this._systemEntries = this._systemEntries.filter((entry) => entry.owner !== owner);
+    this._refreshSystems();
+    return entries.length;
+  }
+
+  setSystemEnabled(system, enabled) {
+    const entry = this._findSystemEntry(system);
+    if (!entry) return false;
+
+    const nextEnabled = enabled !== false;
+    if (entry.enabled === nextEnabled) {
+      return false;
+    }
+
+    entry.enabled = nextEnabled;
+    if (nextEnabled) {
+      this._callSystemHook(entry, 'onEnable');
+    } else {
+      this._callSystemHook(entry, 'onDisable');
+    }
+    return true;
   }
 
   /**
@@ -162,9 +227,10 @@ class GameEngine {
   }
 
   _runFixedUpdate(step) {
-    for (const system of this.systems) {
-      if (system.fixedUpdate) {
-        system.fixedUpdate(step, this.frameCount);
+    for (const entry of this._systemEntries) {
+      if (!entry.enabled) continue;
+      if (entry.system.fixedUpdate) {
+        entry.system.fixedUpdate(step, this.frameCount);
       }
     }
   }
@@ -174,11 +240,48 @@ class GameEngine {
       return;
     }
 
-    for (const system of this.systems) {
-      if (system.update) {
-        system.update(deltaTime, this.frameCount, { alpha });
+    for (const entry of this._systemEntries) {
+      if (!entry.enabled) continue;
+      if (entry.system.update) {
+        entry.system.update(deltaTime, this.frameCount, { alpha });
       }
     }
+  }
+
+  _resolveSystemPriority(system, options) {
+    if (Number.isFinite(options.priority)) {
+      return options.priority;
+    }
+    if (Number.isFinite(system.priority)) {
+      return system.priority;
+    }
+    return 0;
+  }
+
+  _findSystemEntry(system) {
+    return this._systemEntries.find((entry) => entry.system === system) || null;
+  }
+
+  _refreshSystems() {
+    this._systemEntries.sort((a, b) => {
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+      return a.order - b.order;
+    });
+    this.systems = this._systemEntries.map((entry) => entry.system);
+  }
+
+  _callSystemHook(entry, hookName) {
+    if (!entry || !entry.system || typeof entry.system[hookName] !== 'function') {
+      return;
+    }
+    entry.system[hookName](this, {
+      id: entry.id,
+      owner: entry.owner,
+      priority: entry.priority,
+      enabled: entry.enabled
+    });
   }
 
   /**
@@ -189,19 +292,30 @@ class GameEngine {
 
     const currentTime = Date.now();
     const rawDelta = currentTime - this.lastFrameTime;
-    const deltaTime = Math.min(rawDelta, this.maxDelta) * this.timeScale;
+    const clampedDelta = Math.min(rawDelta, this.maxDelta);
+    const paused = this.state === GAME_STATE.PAUSED || this.state === GAME_STATE.STOPPED;
+    const deltaTime = paused ? 0 : clampedDelta * this.timeScale;
 
     // 更新帧计数
     this.frameCount++;
 
     this.accumulator += deltaTime;
 
-    while (this.accumulator >= this.fixedDelta) {
+    while (!paused && this.accumulator >= this.fixedDelta) {
       this._runFixedUpdate(this.fixedDelta);
       this.accumulator -= this.fixedDelta;
     }
 
-    const alpha = this.fixedDelta > 0 ? this.accumulator / this.fixedDelta : 0;
+    const alpha = !paused && this.fixedDelta > 0 ? this.accumulator / this.fixedDelta : 0;
+    this.time.advance({
+      now: currentTime,
+      delta: deltaTime,
+      unscaledDelta: clampedDelta,
+      fixedDelta: this.fixedDelta,
+      alpha,
+      frame: this.frameCount,
+      paused
+    });
     this._runFrameUpdate(deltaTime, alpha);
 
     // 每帧调用渲染回调

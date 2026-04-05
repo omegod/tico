@@ -5,6 +5,7 @@ function run() {
   console.log('Testing Engine Exports...');
 
   assert.ok(engine.EngineApp);
+  assert.ok(engine.EngineTime);
   assert.ok(engine.Scene);
   assert.ok(engine.SpriteNode);
   assert.ok(engine.Renderer);

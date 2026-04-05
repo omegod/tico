@@ -12,6 +12,7 @@
 
 - 场景驱动运行时
 - 固定步进主循环与插值支持
+- 统一的游戏时间服务，支持 `after()`、`every()`、`nextFrame()` 调度
 - 节点树与 `Node2D`、`SpriteNode`、`TextNode`、`TilemapNode`
 - 支持相机的终端渲染
 - 输入处理与动作映射
@@ -63,6 +64,13 @@ class HelloScene extends Scene {
 
   onEnter(app) {
     app.engine.setState('running');
+    this.direction = 1;
+    app.time.every(120, () => {
+      this.ship.x += this.direction;
+      if (this.ship.x >= 24 || this.ship.x <= 10) {
+        this.direction *= -1;
+      }
+    }, { owner: this });
   }
 }
 
@@ -71,12 +79,14 @@ app.addScene('hello', new HelloScene());
 app.start('hello');
 ```
 
+`app.time` 为场景提供可复用的调度器，会自动遵守引擎暂停 / 倍速规则，并在场景退出时清理归属于该场景的任务。
+
 ## 示例
 
 | 游戏 | 说明 | 运行命令 |
 |------|------|----------|
 | **星际猎手** | 弹幕射击游戏，6种战机，Boss战斗 | `npm run example:star-hunter` |
-| **俄罗斯方块** | 经典方块游戏，7-Bag随机算法，幽灵方块 | `npm run example:tetris` |
+| **俄罗斯方块** | 经典方块游戏，使用 JSON 方块数据和调度器驱动的菜单 / 状态提示 | `npm run example:tetris` |
 
 
 - [星际猎手详细介绍](./example/star-hunter/docs/README.zh-CN.md)
@@ -90,7 +100,7 @@ npm test
 
 包入口会转出 `src/engine/index.js` 中的公共 API。
 
-- 应用与主循环：`EngineApp`、`GameEngine`、`GAME_STATE`
+- 应用与主循环：`EngineApp`、`GameEngine`、`GAME_STATE`、`EngineTime`
 - 场景与节点：`Scene`、`SceneManager`、`Node2D`、`SpriteNode`、`TextNode`、`TilemapNode`
 - 系统：`EventBus`、`GameEvents`、`EntityManager`、`Entity`、`EntityType`、`CollisionSystem`、`PhysicsWorld`
 - 输入：`InputHandler`、`InputActionContext`、`ActionMap`、`KeyMapping`、`getAction`、`matches`
@@ -119,6 +129,7 @@ tests/                  引擎与示例测试
 ## 文档
 
 - [引擎开发指南](./docs/ENGINE_GUIDE.zh-CN.md)
+- [引擎演进计划](./docs/ENGINE_PLAN.zh-CN.md)
 - [贡献指南](./docs/CONTRIBUTING.zh-CN.md)
 
 ## 许可证

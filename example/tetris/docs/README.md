@@ -61,6 +61,7 @@ Level increases every 10 lines cleared, speeding up the drop rate.
 - **Chinese UI Support** - Full Chinese interface
 - **Pause/Resume** - Take breaks anytime
 - **Score Tracking** - Score, lines, level, and pace displayed in real-time
+- **EngineTime Demo** - Menu hints blink with `app.time.every()` and the READY toast uses `app.time.after()`
 
 ## How to Run
 
@@ -80,6 +81,7 @@ node src/index.js
 - **Runtime**: Node.js
 - **Rendering**: ASCII art with ANSI colors
 - **Assets**: JSON-based tetromino definitions
+- **Scheduling**: `EngineTime` scene-owned timers for UI hints
 
 ## Original Reference
 

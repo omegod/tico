@@ -61,6 +61,7 @@
 - **中文界面** - 完整的中文用户界面
 - **暂停/继续** - 随时可暂停游戏
 - **实时统计** - 实时显示分数、行数、等级和下落速度
+- **EngineTime 示例** - 菜单提示由 `app.time.every()` 闪烁驱动，READY 状态提示由 `app.time.after()` 自动收起
 
 ## 如何运行
 
@@ -80,6 +81,7 @@ node src/index.js
 - **运行环境**: Node.js
 - **渲染**: ASCII 艺术 + ANSI 颜色
 - **资源**: JSON 格式的方块定义
+- **调度**: 使用 `EngineTime` 的 scene-owned 定时任务驱动 UI 提示
 
 ## 原始参考
 

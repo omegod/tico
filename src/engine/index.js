@@ -1,5 +1,6 @@
 const { EngineApp } = require('./app/EngineApp');
 const { GameEngine, GAME_STATE } = require('./core/GameEngine');
+const { EngineTime } = require('./core/EngineTime');
 const { EventBus, GameEvents } = require('./core/EventBus');
 const { EntityManager, Entity, EntityType } = require('./core/EntityManager');
 const { CollisionSystem } = require('./core/CollisionSystem');
@@ -38,6 +39,7 @@ module.exports = {
   EngineApp,
   GameEngine,
   GAME_STATE,
+  EngineTime,
   EventBus,
   GameEvents,
   EntityManager,

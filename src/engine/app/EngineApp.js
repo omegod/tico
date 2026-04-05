@@ -7,6 +7,7 @@ const { SceneManager } = require('../scene/SceneManager');
 const { ResourceManager } = require('../resources/ResourceManager');
 const { AnimationPlayer } = require('../animation/AnimationPlayer');
 const { PhysicsWorld } = require('../physics/PhysicsWorld');
+const { EngineTime } = require('../core/EngineTime');
 
 class EngineApp {
   constructor(options = {}) {
@@ -22,6 +23,8 @@ class EngineApp {
       frameRate: this.frameRate,
       eventBus: this.eventBus
     });
+    this.time = options.time || this.engine.time || new EngineTime();
+    this.engine.time = this.time;
     this.entities = options.entities || new EntityManager(this.eventBus);
     this.renderer = options.renderer || new Renderer(this.width, this.height, this.stdout);
     this.input = options.input || new InputHandler();
@@ -41,6 +44,7 @@ class EngineApp {
       stdout: this.stdout,
       eventBus: this.eventBus,
       engine: this.engine,
+      time: this.time,
       entities: this.entities,
       renderer: this.renderer,
       input: this.input,

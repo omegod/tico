@@ -33,6 +33,7 @@ const {
   InputHandler,
   Renderer,
   ResourceManager,
+  EngineTime,
   AnimationPlayer,
   PhysicsWorld,
   COLORS,
@@ -50,7 +51,7 @@ const { EngineApp, Scene } = require('./src');
 
 包入口会转出 `src/engine/index.js` 中的公共 API。
 
-- 应用与主循环：`EngineApp`、`GameEngine`、`GAME_STATE`
+- 应用与主循环：`EngineApp`、`GameEngine`、`GAME_STATE`、`EngineTime`
 - 核心：`EventBus`、`GameEvents`、`EntityManager`、`Entity`、`EntityType`、`CollisionSystem`
 - 场景树：`Scene`、`SceneManager`、`Node2D`、`SpriteNode`、`TextNode`、`TilemapNode`
 - 输入：`InputHandler`、`InputActionContext`、`ActionMap`、`KeyMapping`、`getAction`、`matches`
@@ -62,6 +63,7 @@ const { EngineApp, Scene } = require('./src');
 `EngineApp` 会把引擎运行时组装起来：
 
 - `engine` 负责主循环与状态
+- `time` 负责统一的游戏时钟与调度
 - `renderer` 负责终端绘制
 - `input` 负责按键输入
 - `resources` 负责资源缓存
@@ -77,6 +79,62 @@ const { EngineApp, Scene } = require('./src');
 - `switchScene(name)`
 - `stop()`
 - `getRuntime()`
+
+### 时间与调度
+
+`app.time` 是面向玩法层的统一时钟。它会跟踪缩放后的游戏时间、帧信息，以及应该遵守暂停 / 倍速规则的延时任务。
+
+常用方法：
+
+- `now()`
+- `delta()`
+- `unscaledDelta()`
+- `after(ms, callback, options)`
+- `every(ms, callback, options)`
+- `nextFrame(callback, options)`
+- `cancel(handle)`
+- `cancelByOwner(owner)`
+
+建议在 `Scene` 或类似 system 的对象里使用 `owner: this`，这样场景解绑时，相关任务可以自动清理。
+
+```js
+app.time.every(250, () => {
+  this.cursorVisible = !this.cursorVisible;
+}, { owner: this });
+
+app.time.after(1200, () => {
+  this.statusText = '';
+}, { owner: this });
+```
+
+### 系统调度
+
+`GameEngine` 现在同时扮演轻量系统调度器。系统本身就是普通对象，可以按需实现生命周期钩子和更新方法。
+
+常用钩子：
+
+- `onAttach(engine, info)`
+- `onEnable(engine, info)`
+- `fixedUpdate(dt, frameCount)`
+- `update(dt, frameCount, meta)`
+- `onDisable(engine, info)`
+- `onDetach(engine, info)`
+
+注册系统时可以附带元信息：
+
+```js
+app.engine.registerSystem(debugSystem, {
+  owner: this,
+  priority: 50,
+  id: 'debug:overlay'
+});
+```
+
+说明：
+
+- `priority` 越小越早执行。
+- `owner` 方便 scene 或模块一次性清理自己注册的系统。
+- 依赖排序还没有成为稳定公共 API，所以当前更推荐少量系统 + 显式 priority。
 
 ## 5. 场景生命周期
 
@@ -96,6 +154,7 @@ const { EngineApp, Scene } = require('./src');
 - `managed` 控制场景是否自动绑定引擎运行时
 - `autoClear` 控制每帧是否自动清屏
 - `autoPresent` 控制是否自动写入 stdout
+- `systemPriority` 控制场景运行时系统在引擎系统列表中的位置
 
 示例：
 
@@ -189,6 +248,15 @@ if (inputContext.consume('LEFT')) {
 - `TextNode`：文本标签
 - `TilemapNode`：格子地图
 
+### Entity 与 Node 的职责
+
+`Node2D` 和 `Entity` 是有意分开的两套模型：
+
+- `Node2D` 负责场景树组织、变换和渲染。
+- `Entity` 负责玩法状态、碰撞数据、标签和生命周期。
+
+也就是说，`Node2D` 更偏表现层，`Entity` 更偏玩法层。如果一个游戏对象两者都需要，优先考虑组合或适配层，而不是直接把两套模型硬合并。
+
 ## 9. 资源
 
 `ResourceManager` 提供文本和 JSON 的轻量缓存。
@@ -277,6 +345,7 @@ my-game/
 | `stdout` | stream | `process.stdout` | 终端输出流。 |
 | `eventBus` | `EventBus` | 新建实例 | 共享事件总线。 |
 | `engine` | `GameEngine` | 新建实例 | 自定义引擎实例。 |
+| `time` | `EngineTime` | `engine.time` | 共享的游戏时钟与调度器。 |
 | `entities` | `EntityManager` | 新建实例 | 场景和系统共用的实体容器。 |
 | `renderer` | `Renderer` | 新建实例 | ASCII 渲染器。 |
 | `input` | `InputHandler` | 新建实例 | 键盘输入处理器。 |
@@ -290,7 +359,7 @@ my-game/
 
 | 方法 | 输入 | 输出 | 说明 |
 |---|---|---|---|
-| `getRuntime()` | 无 | object | 返回当前运行时对象，包含 `width`、`height`、`stdout`、`engine`、`entities`、`renderer`、`input`、`resources`、`animations`、`physics`。 |
+| `getRuntime()` | 无 | object | 返回当前运行时对象，包含 `width`、`height`、`stdout`、`engine`、`time`、`entities`、`renderer`、`input`、`resources`、`animations`、`physics`。 |
 | `addScene(name, scene)` | `name: string`，`scene: Scene` | `this` | 注册场景并自动绑定 app。 |
 | `start(sceneName)` | `sceneName: string` | `this` | 初始化终端输入、绑定清理逻辑、启动场景并进入主循环。 |
 | `switchScene(name)` | `name: string` | `this` | 切换到已注册的其他场景。 |
@@ -311,6 +380,7 @@ my-game/
 | `timeScale` | number | `1` | 全局时间缩放倍率。 |
 | `initialState` | string | `GAME_STATE.BOOT` | 初始状态。 |
 | `eventBus` | `EventBus` | 新建实例 | 共享事件总线。 |
+| `time` | `EngineTime` | 新建实例 | 共享的游戏时钟与调度器。 |
 
 返回值：`GameEngine`
 
@@ -340,8 +410,10 @@ my-game/
 | `resume()` | 无 | `void` | 从暂停状态恢复到之前的状态。 |
 | `togglePause()` | 无 | `void` | 在暂停与继续之间切换。 |
 | `setState(newState)` | `newState: string` | `string` | 设置状态并返回旧状态。 |
-| `registerSystem(system)` | `system: { update?, fixedUpdate? }` | `void` | 注册一个系统进入更新列表。 |
+| `registerSystem(system, options)` | `system: { onAttach?, onEnable?, update?, fixedUpdate?, onDisable?, onDetach? }`，`options?: { priority?, owner?, id?, enabled? }` | `system` | 注册一个系统进入更新列表，并附加可选调度元信息。 |
 | `unregisterSystem(system)` | `system: object` | `void` | 从更新列表移除一个系统。 |
+| `unregisterSystemsByOwner(owner)` | `owner: any` | `number` | 批量移除某个 owner 注册的全部系统。 |
+| `setSystemEnabled(system, enabled)` | `system: object`，`enabled?: boolean` | `boolean` | 启用或禁用一个已注册系统。 |
 | `setEntityManager(entityManager)` | `entityManager: EntityManager` | `void` | 绑定实体管理器。 |
 | `setTimeScale(scale)` | `scale: number` | `void` | 设置全局模拟速度。 |
 | `setFixedDelta(delta)` | `delta: number` | `void` | 设置固定步进。 |
@@ -365,6 +437,7 @@ my-game/
 | `options.managed` | boolean | `true` | 是否自动绑定到引擎运行时。 |
 | `options.autoClear` | boolean | `true` | 是否每帧自动清屏。 |
 | `options.autoPresent` | boolean | `true` | 是否每帧自动输出到 `stdout`。 |
+| `options.systemPriority` | number | `0` | 场景运行时系统注册到引擎时使用的优先级。 |
 
 返回值：`Scene`
 
@@ -894,6 +967,30 @@ my-game/
 
 这些 loader 方法创建的元数据包含 `type`（`text` 或 `json`）和 `filePath`。
 
+#### `EngineTime`
+
+`new EngineTime()`
+
+方法：
+
+| 方法 | 输入 | 输出 | 说明 |
+|---|---|---|---|
+| `initialize(now)` | `now?: number` | `void` | 在主循环启动时重置帧级状态。已注册任务会保留。 |
+| `now()` | 无 | `number` | 返回缩放后的游戏时间，单位为毫秒。 |
+| `realNow()` | 无 | `number` | 返回引擎主循环最近一次看到的真实时间戳。 |
+| `delta()` | 无 | `number` | 返回当前帧的缩放后 delta。 |
+| `unscaledDelta()` | 无 | `number` | 返回当前帧在时间缩放前的 delta。 |
+| `fixedDelta()` | 无 | `number` | 返回最近一帧使用的固定步进值。 |
+| `alpha()` | 无 | `number` | 返回最近一帧的插值 alpha。 |
+| `frame()` | 无 | `number` | 返回当前帧编号。 |
+| `isPaused()` | 无 | `boolean` | 返回最近一帧是否处于暂停推进。 |
+| `after(delay, callback, options)` | `delay: number`、`callback(ctx)`、`options?: { owner?, scaled? }` | 任务句柄 | 延时执行一次回调。 |
+| `every(interval, callback, options)` | `interval: number`、`callback(ctx)`、`options?: { owner?, scaled? }` | 任务句柄 | 周期执行回调；回调返回 `false` 时停止。 |
+| `nextFrame(callback, options)` | `callback(ctx)`、`options?: { owner? }` | 任务句柄 | 下一帧执行一次回调。 |
+| `cancel(handle)` | 任务句柄或 id | `boolean` | 取消单个任务。 |
+| `cancelByOwner(owner)` | `owner: any` | `number` | 取消某个 owner 关联的全部任务。 |
+| `clear()` | 无 | `void` | 清空所有调度任务。 |
+
 #### `AnimationPlayer`
 
 `new AnimationPlayer()`
@@ -999,9 +1096,12 @@ my-game/
 - 构造函数只做静态配置，不要塞入每局状态。
 - 每局重置状态放在 `onEnter()`。
 - 用 `EntityManager` 统一管理实体生命周期，不要到处维护临时数组。
+- `Node2D` 负责表现树，`Entity` 负责玩法状态；默认优先桥接而不是直接合并模型。
 - 游戏动作建议通过 `ActionMap` 或 `KeyMapping` 表达，不要到处硬写原始按键。
 - 渲染优先级尽量使用 `Layer`，不要散落硬编码数字。
 - 跨系统或跨场景的玩法消息，优先通过 `EventBus` 解耦。
+- 玩法调度优先通过 `app.time` 实现，不要直接散落 `setTimeout()` 或 `Date.now()`。
+- 注册系统时优先显式填写 `owner` 和 `priority`，让清理和执行顺序更清楚。
 - 实时逻辑放在 `onUpdate`
 - 固定步进逻辑放在 `onFixedUpdate`
 - 临时 UI 和覆盖层放在 `onRender`

@@ -62,6 +62,10 @@ class TetrisScene extends Scene {
     this.lines = 0;
     this.level = 1;
     this._savedRecord = false;
+    this._menuPulseVisible = true;
+    this._statusText = '';
+    this._menuPulseOwner = { scene: this, channel: 'menu-pulse' };
+    this._statusOwner = { scene: this, channel: 'status' };
   }
 
   onEnter(app) {
@@ -78,6 +82,12 @@ class TetrisScene extends Scene {
 
     this._goToMenu();
     app.engine.setState('running');
+  }
+
+  onExit(app) {
+    if (!app || !app.time) return;
+    app.time.cancelByOwner(this._menuPulseOwner);
+    app.time.cancelByOwner(this._statusOwner);
   }
 
   onInput(key) {
@@ -231,6 +241,8 @@ class TetrisScene extends Scene {
     this.nextPiece = null;
     this.dropAccumulator = 0;
     this._savedRecord = false;
+    this._statusText = '';
+    this._startMenuPulse();
     if (this.app && this.app.engine) {
       this.app.engine.setState('running');
     }
@@ -238,6 +250,7 @@ class TetrisScene extends Scene {
 
   _openRecords() {
     this.mode = 'records';
+    this._stopMenuPulse();
     if (this.app && this.app.engine) {
       this.app.engine.setState('running');
     }
@@ -255,6 +268,8 @@ class TetrisScene extends Scene {
     this.currentPiece = this._createPiece();
     this.nextPiece = this._createPiece();
     this._savedRecord = false;
+    this._stopMenuPulse();
+    this._flashStatus('READY // app.time.after() clears this hint');
     if (this.app && this.app.engine) {
       this.app.engine.setState('running');
     }
@@ -489,12 +504,19 @@ class TetrisScene extends Scene {
     });
 
     renderer.drawString(7, 16, 'Enter 确认 / Q 退出', COLORS.dim, false, Layer.HUD);
-
     this._drawBox(renderer, 32, 4, 44, 14, '状态', COLORS.orange);
     renderer.drawString(35, 7, '7-bag 随机', COLORS.brightCyan, true, Layer.HUD);
     renderer.drawString(35, 9, '幽灵方块落点', COLORS.brightCyan, false, Layer.HUD);
     renderer.drawString(35, 11, '暂停 / 继续', COLORS.brightCyan, false, Layer.HUD);
     renderer.drawString(35, 13, '记录会保存在本地 JSON', COLORS.brightCyan, false, Layer.HUD);
+    renderer.drawString(
+      35,
+      15,
+      this._menuPulseVisible ? 'app.time.every() 驱动菜单提示闪烁' : '                                 ',
+      this._menuPulseVisible ? COLORS.brightYellow : COLORS.dim,
+      false,
+      Layer.HUD
+    );
     renderer.drawString(35, 16, 'WASD 或 方向键都可操作', COLORS.dim, false, Layer.HUD);
   }
 
@@ -632,14 +654,45 @@ class TetrisScene extends Scene {
   }
 
   _drawFooter(renderer) {
+    const footerText = this._statusText || '参考原始项目的命令行玩法：菜单、记录、暂停、7-bag、幽灵块与本地存档。';
     renderer.drawString(
       4,
       30,
-      '参考原始项目的命令行玩法：菜单、记录、暂停、7-bag、幽灵块与本地存档。',
-      COLORS.dim,
+      footerText,
+      this._statusText ? COLORS.brightYellow : COLORS.dim,
       false,
       Layer.HUD
     );
+  }
+
+  _startMenuPulse() {
+    if (!this.app || !this.app.time) return;
+
+    this.app.time.cancelByOwner(this._menuPulseOwner);
+    this._menuPulseVisible = true;
+    this.app.time.every(450, () => {
+      if (this.mode !== 'menu') {
+        return false;
+      }
+      this._menuPulseVisible = !this._menuPulseVisible;
+      return true;
+    }, { owner: this._menuPulseOwner });
+  }
+
+  _stopMenuPulse() {
+    if (!this.app || !this.app.time) return;
+    this.app.time.cancelByOwner(this._menuPulseOwner);
+    this._menuPulseVisible = true;
+  }
+
+  _flashStatus(text, duration = 1200) {
+    this._statusText = text;
+    if (!this.app || !this.app.time) return;
+
+    this.app.time.cancelByOwner(this._statusOwner);
+    this.app.time.after(duration, () => {
+      this._statusText = '';
+    }, { owner: this._statusOwner });
   }
 
   _drawBox(renderer, x, y, width, height, title, color) {

@@ -10,6 +10,7 @@ class Scene {
     this.managed = options.managed !== false;
     this.autoClear = options.autoClear !== false;
     this.autoPresent = options.autoPresent !== false;
+    this.systemPriority = Number.isFinite(options.systemPriority) ? options.systemPriority : 0;
     this.active = false;
     this._runtimeSystem = null;
     this._inputOff = null;
@@ -57,7 +58,11 @@ class Scene {
       }
     };
 
-    this.app.engine.registerSystem(this._runtimeSystem);
+    this.app.engine.registerSystem(this._runtimeSystem, {
+      owner: this,
+      priority: this.systemPriority,
+      id: `scene:${this.name}:runtime`
+    });
     this.app.engine.onRender((dt, frameCount, alpha) => {
       const renderer = this.app.renderer;
       renderer.setCamera(this.camera);
@@ -82,14 +87,20 @@ class Scene {
 
   _unbindRuntime() {
     if (!this.app) return;
+    if (this.app.time) {
+      this.app.time.cancelByOwner(this);
+    }
+    if (this.app.engine.unregisterSystemsByOwner) {
+      this.app.engine.unregisterSystemsByOwner(this);
+    }
     if (this._inputOff) {
       this._inputOff();
       this._inputOff = null;
     }
-    if (this._runtimeSystem) {
+    if (this._runtimeSystem && !this.app.engine.unregisterSystemsByOwner) {
       this.app.engine.unregisterSystem(this._runtimeSystem);
-      this._runtimeSystem = null;
     }
+    this._runtimeSystem = null;
     this.app.engine.onRender(null);
     this.app.renderer.setCamera(null);
   }

@@ -111,7 +111,11 @@ class StarHunter {
     this.engine.setEntityManager(this.entities);
 
     // 注册系统
-    this.engine.registerSystem(this._updateSystem);
+    this.engine.registerSystem(this._updateSystem, {
+      owner: this,
+      priority: 0,
+      id: 'star-hunter:update'
+    });
 
     // 注册渲染回调
     this.engine.onRender((dt, frameCount) => this._render(dt, frameCount));
@@ -1117,7 +1121,11 @@ class StarHunter {
       }
     }
 
-    this.engine.unregisterSystem(this._updateSystem);
+    if (this.engine.unregisterSystemsByOwner) {
+      this.engine.unregisterSystemsByOwner(this);
+    } else {
+      this.engine.unregisterSystem(this._updateSystem);
+    }
     this.engine.onRender(null);
 
     if (this.runtimeOwned) {

@@ -49,6 +49,7 @@ function run() {
     app.addScene('menu', menu).addScene('game', game);
     const runtime = app.getRuntime();
     assert.strictEqual(runtime.width, 40);
+    assert.ok(runtime.time);
     assert.ok(runtime.resources);
     assert.ok(runtime.animations);
     assert.ok(runtime.physics);
