@@ -2,6 +2,7 @@ const assert = require('assert');
 const { Scene } = require('../../src/engine/scene/Scene');
 const { Renderer } = require('../../src/engine/rendering/Renderer');
 const { AnimationPlayer } = require('../../src/engine/animation/AnimationPlayer');
+const { TextNode } = require('../../src/engine/nodes/TextNode');
 
 class DemoScene extends Scene {
   constructor() {
@@ -70,6 +71,10 @@ function run() {
   };
 
   const scene = new DemoScene();
+  scene.camera.x = 2;
+  scene.camera.y = 1;
+  scene.root.addChild(new TextNode({ x: 4, y: 2, text: 'W' }));
+  scene.screenRoot.addChild(new TextNode({ x: 4, y: 2, text: 'S' }));
   scene.attach(app);
   scene.enter();
 
@@ -88,6 +93,8 @@ function run() {
   assert.strictEqual(scene.rendered, 1);
   assert.strictEqual(scene.inputs, 1);
   assert.ok(stdout.writes.length >= 2);
+  assert.strictEqual(app.renderer.getBuffer().getCell(2, 1).char, 'W');
+  assert.strictEqual(app.renderer.getBuffer().getCell(4, 2).char, 'S');
 
   scene.exit();
   assert.strictEqual(scene.exited, 1);

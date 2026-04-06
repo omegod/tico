@@ -34,10 +34,12 @@ const {
   Renderer,
   ResourceManager,
   EngineTime,
+  Sequence,
   AnimationPlayer,
   PhysicsWorld,
   COLORS,
-  Layer
+  Layer,
+  RenderSpace
 } = require('@omgod/tico');
 ```
 
@@ -52,10 +54,10 @@ const { EngineApp, Scene } = require('./src');
 The package root re-exports the engine surface from `src/engine/index.js`.
 
 - App and loop: `EngineApp`, `GameEngine`, `GAME_STATE`, `EngineTime`
-- Core: `EventBus`, `GameEvents`, `EntityManager`, `Entity`, `EntityType`, `CollisionSystem`
+- Core: `EventBus`, `GameEvents`, `EntityManager`, `Entity`, `EntityType`, `CollisionSystem`, `Sequence`
 - Scene graph: `Scene`, `SceneManager`, `Node2D`, `SpriteNode`, `TextNode`, `TilemapNode`
 - Input: `InputHandler`, `InputActionContext`, `ActionMap`, `KeyMapping`, `getAction`, `matches`
-- Rendering: `Renderer`, `COLORS`, `Layer`, `Camera2D`, `ScreenBuffer`, `Cell`
+- Rendering: `Renderer`, `COLORS`, `Layer`, `RenderSpace`, `Camera2D`, `ScreenBuffer`, `Cell`
 - Content, layout, and widgets: `ResourceManager`, `AnimationPlayer`, `Tween`, `EASING`, `BORDER_STYLES`, `normalizeLines`, `resolveBorder`, `borderThickness`, `measureText`, `measureLines`, `styleText`, `alignText`, `padBlock`, `stackBlocks`, `frameLines`, `dividerLine`, `frameMetrics`, `resolvePosition`, `Widget`, `TextWidget`, `BarWidget`, `MenuWidget`, `PanelWidget`, `DialogWidget`
 
 ## 4. Runtime Architecture
@@ -77,6 +79,9 @@ Important methods:
 - `addScene(name, scene)`
 - `start(sceneName)`
 - `switchScene(name)`
+- `replaceScene(name)`
+- `pushScene(name)`
+- `popScene()`
 - `stop()`
 - `getRuntime()`
 
@@ -89,9 +94,14 @@ Common methods:
 - `now()`
 - `delta()`
 - `unscaledDelta()`
+- `fixedDelta()`
+- `alpha()`
+- `frame()`
+- `isPaused()`
 - `after(ms, callback, options)`
 - `every(ms, callback, options)`
 - `nextFrame(callback, options)`
+- `createSequence(options)`
 - `cancel(handle)`
 - `cancelByOwner(owner)`
 
@@ -105,6 +115,20 @@ app.time.every(250, () => {
 app.time.after(1200, () => {
   this.statusText = '';
 }, { owner: this });
+```
+
+For owned step-by-step flow, use `createSequence()` instead of chaining raw timers:
+
+```js
+app.time.createSequence({ owner: this })
+  .call(() => {
+    this.state = 'warning';
+  })
+  .wait(600)
+  .call(() => {
+    this.state = 'spawn';
+  })
+  .start();
 ```
 
 ### Runtime Usage Notes
@@ -152,12 +176,14 @@ Notes:
 
 ## 5. Scene Lifecycle
 
-`Scene` is the main entry point for gameplay code. Each scene owns a root node and a camera.
+`Scene` is the main entry point for gameplay code. Each scene owns a world `root`, a screen-space `screenRoot`, and a camera.
 
 Lifecycle hooks:
 
 - `onEnter(app)`
 - `onExit(app)`
+- `onCovered(app, meta)`
+- `onRevealed(app, meta)`
 - `onUpdate(dt, frameCount, meta, app)`
 - `onFixedUpdate(dt, frameCount, app)`
 - `onRender({ app, renderer, dt, frameCount, alpha })`
@@ -169,6 +195,15 @@ Options:
 - `autoClear` controls whether the renderer clears each frame
 - `autoPresent` controls whether the frame is written to stdout automatically
 - `systemPriority` controls where the scene runtime sits inside the engine system list
+- `opaque` controls whether scenes below this one remain visible in a scene stack
+- `blocksUpdate` controls whether scenes below continue updating when this scene is on top
+- `blocksInput` controls whether scenes below continue receiving input when this scene is on top
+
+When you use `EngineApp`, scenes can now be stacked:
+
+- `switchScene()` / `replaceScene()` replace the active stack with one scene
+- `pushScene()` adds an overlay scene on top
+- `popScene()` removes the top scene and reveals the one below
 
 Example:
 
@@ -180,6 +215,12 @@ class BootScene extends Scene {
       x: 3,
       y: 2,
       text: 'Booting...'
+    }));
+    this.screenRoot.addChild(new TextNode({
+      x: 2,
+      y: 0,
+      text: 'Loading',
+      layer: 100
     }));
   }
 
@@ -235,6 +276,9 @@ The built-in `KeyMapping` helper covers common actions such as movement, shootin
 Main methods:
 
 - `setCamera(camera)`
+- `setRenderSpace(space)`
+- `getRenderSpace()`
+- `withRenderSpace(space, callback)`
 - `clear()`
 - `drawCell(x, y, char, color, bold, layer, bgColor)`
 - `drawString(x, y, text, color, bold, layer, bgColor)`
@@ -245,6 +289,7 @@ Main methods:
 - `scrollBackground()`
 
 Use `Layer` to control draw priority and `COLORS` for ANSI styling.
+Use `RenderSpace.WORLD` for camera-projected drawing and `RenderSpace.SCREEN` for terminal-space overlays.
 
 ### Rendering Usage Notes
 
@@ -254,6 +299,7 @@ Use `Layer` to control draw priority and `COLORS` for ANSI styling.
 Common pitfalls:
 
 - `drawString()`, `drawText()`, and `drawArt()` all go through the active camera transform.
+- For screen-space drawing, use `renderer.withRenderSpace(RenderSpace.SCREEN, ...)` or attach nodes to `scene.screenRoot`.
 - In terminals, string length and display width are not always the same. For alignment-sensitive UI, prefer the `ScreenBuffer` / `layout` width-aware helpers.
 - If something is purely an overlay, drawing it in `onRender()` is often simpler than modeling it as a world entity.
 

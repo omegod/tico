@@ -34,10 +34,12 @@ const {
   Renderer,
   ResourceManager,
   EngineTime,
+  Sequence,
   AnimationPlayer,
   PhysicsWorld,
   COLORS,
-  Layer
+  Layer,
+  RenderSpace
 } = require('@omgod/tico');
 ```
 
@@ -52,10 +54,10 @@ const { EngineApp, Scene } = require('./src');
 包入口会转出 `src/engine/index.js` 中的公共 API。
 
 - 应用与主循环：`EngineApp`、`GameEngine`、`GAME_STATE`、`EngineTime`
-- 核心：`EventBus`、`GameEvents`、`EntityManager`、`Entity`、`EntityType`、`CollisionSystem`
+- 核心：`EventBus`、`GameEvents`、`EntityManager`、`Entity`、`EntityType`、`CollisionSystem`、`Sequence`
 - 场景树：`Scene`、`SceneManager`、`Node2D`、`SpriteNode`、`TextNode`、`TilemapNode`
 - 输入：`InputHandler`、`InputActionContext`、`ActionMap`、`KeyMapping`、`getAction`、`matches`
-- 渲染：`Renderer`、`COLORS`、`Layer`、`Camera2D`、`ScreenBuffer`、`Cell`
+- 渲染：`Renderer`、`COLORS`、`Layer`、`RenderSpace`、`Camera2D`、`ScreenBuffer`、`Cell`
 - 内容、布局与组件：`ResourceManager`、`AnimationPlayer`、`Tween`、`EASING`、`BORDER_STYLES`、`normalizeLines`、`resolveBorder`、`borderThickness`、`measureText`、`measureLines`、`styleText`、`alignText`、`padBlock`、`stackBlocks`、`frameLines`、`dividerLine`、`frameMetrics`、`resolvePosition`、`Widget`、`TextWidget`、`BarWidget`、`MenuWidget`、`PanelWidget`、`DialogWidget`
 
 ## 4. 运行时架构
@@ -77,6 +79,9 @@ const { EngineApp, Scene } = require('./src');
 - `addScene(name, scene)`
 - `start(sceneName)`
 - `switchScene(name)`
+- `replaceScene(name)`
+- `pushScene(name)`
+- `popScene()`
 - `stop()`
 - `getRuntime()`
 
@@ -89,9 +94,14 @@ const { EngineApp, Scene } = require('./src');
 - `now()`
 - `delta()`
 - `unscaledDelta()`
+- `fixedDelta()`
+- `alpha()`
+- `frame()`
+- `isPaused()`
 - `after(ms, callback, options)`
 - `every(ms, callback, options)`
 - `nextFrame(callback, options)`
+- `createSequence(options)`
 - `cancel(handle)`
 - `cancelByOwner(owner)`
 
@@ -105,6 +115,20 @@ app.time.every(250, () => {
 app.time.after(1200, () => {
   this.statusText = '';
 }, { owner: this });
+```
+
+如果要表达“按步骤串行执行、且跟随 owner 生命周期清理”的流程，优先用 `createSequence()`：
+
+```js
+app.time.createSequence({ owner: this })
+  .call(() => {
+    this.state = 'warning';
+  })
+  .wait(600)
+  .call(() => {
+    this.state = 'spawn';
+  })
+  .start();
 ```
 
 ### 运行时上手建议
@@ -152,12 +176,14 @@ app.engine.registerSystem(debugSystem, {
 
 ## 5. 场景生命周期
 
-`Scene` 是玩法代码的主要入口。每个场景都拥有根节点和相机。
+`Scene` 是玩法代码的主要入口。每个场景都拥有世界根节点 `root`、屏幕空间根节点 `screenRoot` 和相机。
 
 生命周期钩子：
 
 - `onEnter(app)`
 - `onExit(app)`
+- `onCovered(app, meta)`
+- `onRevealed(app, meta)`
 - `onUpdate(dt, frameCount, meta, app)`
 - `onFixedUpdate(dt, frameCount, app)`
 - `onRender({ app, renderer, dt, frameCount, alpha })`
@@ -169,6 +195,15 @@ app.engine.registerSystem(debugSystem, {
 - `autoClear` 控制每帧是否自动清屏
 - `autoPresent` 控制是否自动写入 stdout
 - `systemPriority` 控制场景运行时系统在引擎系统列表中的位置
+- `opaque` 控制场景栈中下层场景是否继续可见
+- `blocksUpdate` 控制当前场景位于栈顶时，下层场景是否继续更新
+- `blocksInput` 控制当前场景位于栈顶时，下层场景是否继续接收输入
+
+现在 `EngineApp` 也支持场景栈：
+
+- `switchScene()` / `replaceScene()`：用一个新场景替换当前栈
+- `pushScene()`：在顶部压入一个覆盖场景
+- `popScene()`：弹出顶部场景并露出下层场景
 
 示例：
 
@@ -180,6 +215,12 @@ class BootScene extends Scene {
       x: 3,
       y: 2,
       text: 'Booting...'
+    }));
+    this.screenRoot.addChild(new TextNode({
+      x: 2,
+      y: 0,
+      text: 'Loading',
+      layer: 100
     }));
   }
 
@@ -235,6 +276,9 @@ if (inputContext.consume('LEFT')) {
 常用方法：
 
 - `setCamera(camera)`
+- `setRenderSpace(space)`
+- `getRenderSpace()`
+- `withRenderSpace(space, callback)`
 - `clear()`
 - `drawCell(x, y, char, color, bold, layer, bgColor)`
 - `drawString(x, y, text, color, bold, layer, bgColor)`
@@ -245,6 +289,7 @@ if (inputContext.consume('LEFT')) {
 - `scrollBackground()`
 
 使用 `Layer` 控制绘制优先级，使用 `COLORS` 进行 ANSI 样式控制。
+使用 `RenderSpace.WORLD` 表示跟随相机的世界坐标，使用 `RenderSpace.SCREEN` 表示终端屏幕坐标。
 
 ### 渲染上手建议
 
@@ -254,6 +299,7 @@ if (inputContext.consume('LEFT')) {
 几个常见注意点：
 
 - `drawString()`、`drawText()`、`drawArt()` 都会经过当前相机投影。
+- 如果要绘制屏幕空间内容，可以用 `renderer.withRenderSpace(RenderSpace.SCREEN, ...)`，或者直接把节点挂到 `scene.screenRoot`。
 - 终端里“字符数”不等于“视觉宽度”，涉及对齐时优先用 `ScreenBuffer` / `layout` 提供的宽度工具。
 - 单纯覆盖层通常直接放在 `onRender()` 里绘制，比建成世界实体更简单。
 

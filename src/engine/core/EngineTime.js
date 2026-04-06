@@ -1,3 +1,5 @@
+const { Sequence } = require('./Sequence');
+
 class EngineTime {
   constructor() {
     this._now = 0;
@@ -10,6 +12,8 @@ class EngineTime {
     this._paused = false;
     this._tasks = [];
     this._nextTaskId = 1;
+    this._sequences = [];
+    this._nextSequenceId = 1;
   }
 
   initialize(now = Date.now()) {
@@ -21,6 +25,7 @@ class EngineTime {
     this._alpha = 0;
     this._frame = 0;
     this._paused = false;
+    this.clear();
   }
 
   now() {
@@ -79,6 +84,12 @@ class EngineTime {
     });
   }
 
+  createSequence(options = {}) {
+    const sequence = new Sequence(this, options);
+    this._sequences.push(sequence);
+    return sequence;
+  }
+
   cancel(handleOrId) {
     const task = this._resolveTask(handleOrId);
     if (!task) return false;
@@ -95,6 +106,11 @@ class EngineTime {
         cancelled++;
       }
     }
+    for (const sequence of [...this._sequences]) {
+      if (sequence.owner === owner && sequence.cancel()) {
+        cancelled++;
+      }
+    }
     if (cancelled > 0) {
       this._prune();
     }
@@ -103,6 +119,10 @@ class EngineTime {
 
   clear() {
     this._tasks = [];
+    for (const sequence of this._sequences) {
+      sequence._dispose();
+    }
+    this._sequences = [];
   }
 
   advance(options = {}) {
@@ -219,6 +239,10 @@ class EngineTime {
 
   _prune() {
     this._tasks = this._tasks.filter((task) => task.active);
+  }
+
+  _detachSequence(sequence) {
+    this._sequences = this._sequences.filter((item) => item !== sequence);
   }
 }
 

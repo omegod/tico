@@ -6,9 +6,11 @@ function run() {
 
   assert.ok(engine.EngineApp);
   assert.ok(engine.EngineTime);
+  assert.ok(engine.Sequence);
   assert.ok(engine.Scene);
   assert.ok(engine.SpriteNode);
   assert.ok(engine.Renderer);
+  assert.ok(engine.RenderSpace);
   assert.ok(engine.ResourceManager);
   assert.ok(engine.AnimationPlayer);
   assert.ok(engine.PanelWidget);

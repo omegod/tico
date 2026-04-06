@@ -1,6 +1,7 @@
 const { EngineApp } = require('./app/EngineApp');
 const { GameEngine, GAME_STATE } = require('./core/GameEngine');
 const { EngineTime } = require('./core/EngineTime');
+const { Sequence } = require('./core/Sequence');
 const { EventBus, GameEvents } = require('./core/EventBus');
 const { EntityManager, Entity, EntityType } = require('./core/EntityManager');
 const { CollisionSystem } = require('./core/CollisionSystem');
@@ -15,7 +16,7 @@ const { SpriteNode } = require('./nodes/SpriteNode');
 const { TextNode } = require('./nodes/TextNode');
 const { TilemapNode } = require('./nodes/TilemapNode');
 const { PhysicsWorld } = require('./physics/PhysicsWorld');
-const { Renderer, COLORS, Layer } = require('./rendering/Renderer');
+const { Renderer, COLORS, Layer, RenderSpace } = require('./rendering/Renderer');
 const { Camera2D } = require('./rendering/Camera2D');
 const { ResourceManager } = require('./resources/ResourceManager');
 const { AnimationPlayer } = require('./animation/AnimationPlayer');
@@ -61,6 +62,7 @@ module.exports = {
   GameEngine,
   GAME_STATE,
   EngineTime,
+  Sequence,
   EventBus,
   GameEvents,
   EntityManager,
@@ -83,6 +85,7 @@ module.exports = {
   Renderer,
   COLORS,
   Layer,
+  RenderSpace,
   Camera2D,
   ResourceManager,
   AnimationPlayer,

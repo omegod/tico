@@ -66,6 +66,12 @@ function run() {
     assert.strictEqual(menu.exited, 1);
     assert.strictEqual(game.entered, 1);
 
+    app.pushScene('menu');
+    assert.strictEqual(game.exited, 0);
+    assert.strictEqual(menu.entered, 2);
+    assert.strictEqual(app.popScene(), menu);
+    assert.strictEqual(menu.exited, 2);
+
     app.stop();
     assert.strictEqual(engine.stopCalls, 1);
     assert.strictEqual(input.cleanupCalls, 1);

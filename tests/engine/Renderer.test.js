@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { Renderer, COLORS, Layer } = require('../../src/engine/rendering/Renderer');
+const { Renderer, COLORS, Layer, RenderSpace } = require('../../src/engine/rendering/Renderer');
 const { Camera2D } = require('../../src/engine/rendering/Camera2D');
 
 function run() {
@@ -16,6 +16,9 @@ function run() {
   renderer.clear();
   renderer.drawCell(2, 1, 'A', COLORS.green, true, Layer.PLAYER);
   renderer.drawString(3, 1, 'Hi', COLORS.red, false, 100);
+  renderer.withRenderSpace(RenderSpace.SCREEN, () => {
+    renderer.drawString(3, 1, 'UI', COLORS.cyan, false, 200);
+  });
   renderer.drawText(0, 2, ['L1', 'L2'], COLORS.blue, false, 100);
   renderer.drawArt(1, 4, ['@@'], COLORS.yellow, true, Layer.PLAYER);
   renderer.fillRect(0, 0, 2, 1, '.', COLORS.dim, false, Layer.BACKGROUND);
@@ -33,6 +36,8 @@ function run() {
 
   assert.ok(renderer.toString().includes('A'));
   assert.ok(renderer.getBuffer());
+  assert.strictEqual(renderer.getBuffer().getCell(0, 0).char, 'A');
+  assert.strictEqual(renderer.getBuffer().getCell(3, 1).char, 'U');
 
   renderer.present();
   assert.ok(stdout.writes.length > 0);

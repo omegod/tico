@@ -59,8 +59,39 @@ function run() {
   });
   assert.strictEqual(time.cancel(handle), true);
 
+  const sequenceCalls = [];
+  const sequenceOwner = { name: 'sequence-owner' };
+  const sequence = time.createSequence({ owner: sequenceOwner, scaled: false });
+  sequence
+    .call((ctx) => {
+      sequenceCalls.push(`start:${ctx.frame}`);
+    })
+    .wait(5)
+    .call((ctx) => {
+      sequenceCalls.push(`finish:${ctx.skipped}`);
+    })
+    .start();
+
   time.advance({ now: 1050, delta: 10, unscaledDelta: 10, fixedDelta: 10, alpha: 0, frame: 5, paused: false });
   assert.strictEqual(time.now(), 40);
+  assert.deepStrictEqual(sequenceCalls, ['start:4', 'finish:false']);
+
+  const skippedCalls = [];
+  const skipped = time.createSequence();
+  skipped
+    .wait(20)
+    .call((ctx) => {
+      skippedCalls.push(`skip:${ctx.skipped}`);
+    })
+    .start();
+  assert.strictEqual(skipped.skip(), true);
+  assert.deepStrictEqual(skippedCalls, ['skip:true']);
+
+  const cancelledSequence = time.createSequence({ owner: sequenceOwner });
+  cancelledSequence.wait(20).call(() => {
+    throw new Error('cancelByOwner should remove sequence');
+  }).start();
+  assert.strictEqual(time.cancelByOwner(sequenceOwner), 1);
 
   console.log('✓ EngineTime tests passed');
   return true;

@@ -78,6 +78,20 @@ class EngineApp {
     return this;
   }
 
+  replaceScene(name) {
+    this.sceneManager.replace(name);
+    return this;
+  }
+
+  pushScene(name) {
+    this.sceneManager.push(name);
+    return this;
+  }
+
+  popScene() {
+    return this.sceneManager.pop();
+  }
+
   stop() {
     if (!this.running) return;
 

@@ -6,6 +6,11 @@
 const { ScreenBuffer, strWidth, stripAnsi, padEndDisplay, center, repeatChar } = require('./ScreenBuffer');
 const { Layer } = require('./Layer');
 
+const RenderSpace = {
+  WORLD: 'world',
+  SCREEN: 'screen'
+};
+
 // ANSI 颜色代码 - 兼容黑白控制台
 // 使用加粗和变暗来创建视觉层次
 const COLORS = {
@@ -70,6 +75,7 @@ class Renderer {
     this.buffer = new ScreenBuffer(width, height);
     this.starScroll = 0;
     this.camera = null;
+    this.renderSpace = RenderSpace.WORLD;
   }
 
   setCamera(camera) {
@@ -78,6 +84,15 @@ class Renderer {
 
   getCamera() {
     return this.camera;
+  }
+
+  setRenderSpace(space) {
+    this.renderSpace = space === RenderSpace.SCREEN ? RenderSpace.SCREEN : RenderSpace.WORLD;
+    return this;
+  }
+
+  getRenderSpace() {
+    return this.renderSpace;
   }
 
   worldToScreen(x, y) {
@@ -91,28 +106,49 @@ class Renderer {
     };
   }
 
+  projectPoint(x, y, space = this.renderSpace) {
+    if (space === RenderSpace.SCREEN) {
+      return {
+        x: Math.floor(x),
+        y: Math.floor(y)
+      };
+    }
+
+    return this.worldToScreen(x, y);
+  }
+
+  withRenderSpace(space, callback) {
+    const previous = this.renderSpace;
+    this.setRenderSpace(space);
+    try {
+      return callback(this);
+    } finally {
+      this.setRenderSpace(previous);
+    }
+  }
+
   drawCell(x, y, char, color = null, bold = false, layer = Layer.BACKGROUND, bgColor = null) {
-    const projected = this.worldToScreen(x, y);
+    const projected = this.projectPoint(x, y);
     this.buffer.setCell(projected.x, projected.y, char, color, bold, layer, bgColor);
   }
 
   drawString(x, y, text, color = null, bold = false, layer = Layer.BACKGROUND, bgColor = null) {
-    const projected = this.worldToScreen(x, y);
+    const projected = this.projectPoint(x, y);
     this.buffer.drawString(projected.x, projected.y, text, color, bold, layer, bgColor);
   }
 
   drawText(x, y, lines, color = null, bold = false, layer = Layer.BACKGROUND, bgColor = null) {
-    const projected = this.worldToScreen(x, y);
+    const projected = this.projectPoint(x, y);
     this.buffer.drawText(projected.x, projected.y, lines, color, bold, layer, bgColor);
   }
 
   drawArt(x, y, art, color = null, bold = false, layer = Layer.BACKGROUND, bgColor = null) {
-    const projected = this.worldToScreen(x, y);
+    const projected = this.projectPoint(x, y);
     this.buffer.drawArt(projected.x, projected.y, art, color, bold, layer, bgColor);
   }
 
   fillRect(x, y, width, height, char = ' ', color = null, bold = false, layer = Layer.BACKGROUND, bgColor = null) {
-    const projected = this.worldToScreen(x, y);
+    const projected = this.projectPoint(x, y);
     this.buffer.fillRect(projected.x, projected.y, width, height, char, color, bold, layer, bgColor);
   }
 
@@ -390,4 +426,4 @@ class Renderer {
   }
 }
 
-module.exports = { Renderer, COLORS, Layer };
+module.exports = { Renderer, COLORS, Layer, RenderSpace };
