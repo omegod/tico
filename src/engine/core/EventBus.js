@@ -1,6 +1,5 @@
 /**
- * EventBus - 事件总线（发布/订阅）
- * 用于解耦游戏系统之间的通信
+ * EventBus - 通用发布/订阅事件总线
  */
 
 class EventBus {
@@ -76,43 +75,4 @@ class EventBus {
   }
 }
 
-// 游戏常用事件
-const GameEvents = {
-  // 子弹事件
-  BULLET_HIT_ENEMY: 'bulletHitEnemy',
-  BULLET_HIT_BOSS: 'bulletHitBoss',
-  BULLET_HIT_PLAYER: 'bulletHitPlayer',
-
-  // 实体事件
-  ENEMY_DESTROYED: 'enemyDestroyed',
-  BOSS_DESTROYED: 'bossDestroyed',
-  PLAYER_DAMAGED: 'playerDamaged',
-  PLAYER_DESTROYED: 'playerDestroyed',
-
-  // 碰撞事件
-  PLAYER_COLLISION_ENEMY: 'playerCollisionEnemy',
-  PLAYER_COLLISION_BOSS: 'playerCollisionBoss',
-
-  // 道具事件
-  POWERUP_COLLECTED: 'powerupCollected',
-
-  // 波次事件
-  WAVE_START: 'waveStart',
-  WAVE_CLEAR: 'waveClear',
-  BOSS_SPAWN: 'bossSpawn',
-
-  // 游戏状态事件
-  GAME_START: 'gameStart',
-  GAME_PAUSE: 'gamePause',
-  GAME_RESUME: 'gameResume',
-  GAME_OVER: 'gameOver',
-  VICTORY: 'victory',
-
-  // 粒子事件
-  EXPLOSION: 'explosion',
-
-  // 音效事件
-  PLAY_SOUND: 'playSound'
-};
-
-module.exports = { EventBus, GameEvents };
+module.exports = { EventBus };

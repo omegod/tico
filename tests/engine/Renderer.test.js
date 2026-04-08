@@ -21,23 +21,58 @@ function run() {
   });
   renderer.drawText(0, 2, ['L1', 'L2'], COLORS.blue, false, 100);
   renderer.drawArt(1, 4, ['@@'], COLORS.yellow, true, Layer.PLAYER);
-  renderer.fillRect(0, 0, 2, 1, '.', COLORS.dim, false, Layer.BACKGROUND);
-  renderer.renderBackground();
-  renderer.scrollBackground();
+  renderer.fillRect(6, 6, 2, 1, '.', COLORS.dim, false, Layer.BACKGROUND);
 
-  renderer.renderPlayer({ x: 4, y: 4 }, ['<>'], 0);
-  renderer.renderShield({ x: 4, y: 4, height: 1, shieldActive: true, shield: 10, maxShield: 20 }, 2);
-  renderer.renderEnemy({ x: 1, y: 1, width: 2, height: 1, art: ['EE'], color: COLORS.red, active: true, invincibleTimer: 0 });
-  renderer.renderBoss({ x: 1, y: 2, art: ['BB'], active: true, invincibleTimer: 0 });
-  renderer.renderBullet({ x: 2, y: 3, char: '|', active: true, isEnemy: false });
-  renderer.renderPowerup({ x: 2, y: 5, char: '*', color: COLORS.yellow, active: true });
-  renderer.renderPowerup({ x: 5, y: 5, art: ['[]'], color: COLORS.cyan, active: true, width: 2, height: 1 });
-  renderer.renderParticle({ x: 4, y: 6, char: '.', active: true, life: 1, maxLife: 4 });
+  renderer.renderSprite({
+    x: 4,
+    y: 4,
+    art: ['<>'],
+    color: COLORS.cyan,
+    active: true
+  }, {
+    align: 'center',
+    bold: true,
+    layer: Layer.PLAYER
+  });
+
+  renderer.renderSprite({
+    x: 5,
+    y: 5,
+    art: ['BB'],
+    active: true
+  }, {
+    layer: Layer.BACKGROUND,
+    color: ({ row }) => (row === 0 ? COLORS.yellow : COLORS.magenta)
+  });
+
+  renderer.renderGlyph({
+    x: 2,
+    y: 3,
+    char: '|',
+    active: true
+  }, {
+    color: COLORS.brightGreen,
+    bold: true,
+    layer: Layer.PLAYER
+  });
+
+  renderer.renderGlyph({
+    x: 7,
+    y: 2,
+    char: '*',
+    width: 2,
+    height: 2,
+    active: true
+  }, {
+    color: COLORS.yellow,
+    layer: Layer.PLAYER
+  });
 
   assert.ok(renderer.toString().includes('A'));
   assert.ok(renderer.getBuffer());
   assert.strictEqual(renderer.getBuffer().getCell(0, 0).char, 'A');
   assert.strictEqual(renderer.getBuffer().getCell(3, 1).char, 'U');
+  assert.strictEqual(renderer.getBuffer().getCell(5, 1).char, '*');
 
   renderer.present();
   assert.ok(stdout.writes.length > 0);

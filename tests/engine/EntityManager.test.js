@@ -2,7 +2,7 @@
  * EntityManager 单元测试
  */
 
-const { EntityManager, EntityType, Entity } = require('../../src/engine/core/EntityManager');
+const { EntityManager, Entity } = require('../../src/engine/core/EntityManager');
 const { EventBus } = require('../../src/engine/core/EventBus');
 
 function assert(condition, message) {
@@ -32,62 +32,59 @@ function run() {
   const eventBus = new EventBus();
   const manager = new EntityManager(eventBus);
 
-  // Test: 创建实体
-  if (test('should create entity', () => {
-    const entity = manager.create(EntityType.PLAYER, { x: 10, y: 20 });
+  if (test('should create entity and index it by type', () => {
+    const entity = manager.create('player', { x: 10, y: 20 });
     assert(entity !== null, 'Entity should be created');
-    assert(entity.type === EntityType.PLAYER, 'Entity type should match');
+    assert(entity.type === 'player', 'Entity type should match');
+    assert(manager.getFirstByType('player') === entity, 'Entity should be queryable by type');
   })) passed++; else failed++;
 
-  // Test: 获取玩家
-  if (test('should get player', () => {
-    manager.create(EntityType.PLAYER, { x: 10, y: 20 });
-    const player = manager.getPlayer();
-    assert(player !== null, 'Player should exist');
+  if (test('should replace singleton-like entities via set', () => {
+    const first = manager.create('camera-target', { x: 0, y: 0 });
+    const second = manager.set('camera-target', new Entity('camera-target', { x: 5, y: 5 }));
+
+    assert(manager.getByType('camera-target').length === 1, 'Type bucket should contain one entity');
+    assert(manager.getFirstByType('camera-target') === second, 'Latest entity should be stored');
+    assert(manager.getFirstByType('camera-target') !== first, 'Previous entity should be removed');
   })) passed++; else failed++;
 
-  // Test: 销毁实体
-  if (test('should destroy entity', () => {
-    const enemy = manager.create(EntityType.ENEMY, { x: 5, y: 5 });
-    const id = enemy.id;
+  if (test('should destroy entities and remove them from indexes', () => {
+    const enemy = manager.create('enemy', { x: 5, y: 5 });
     manager.destroy(enemy);
-    const retrieved = manager.getEnemies().find(e => e.id === id);
-    assert(retrieved === undefined, 'Enemy should be destroyed');
+    assert(manager.getByType('enemy').includes(enemy) === false, 'Destroyed entity should be removed');
   })) passed++; else failed++;
 
-  // Test: 清除所有实体
-  if (test('should clear all entities', () => {
-    manager.create(EntityType.ENEMY, {});
-    manager.create(EntityType.ENEMY, {});
-    manager.create(EntityType.POWERUP, {});
+  if (test('should support tags', () => {
+    const entity = manager.create('pickup', {});
+    manager.addTag(entity, 'collectible');
+    assert(manager.getByTag('collectible').includes(entity), 'Tagged entity should be queryable');
+    manager.destroy(entity);
+    assert(manager.getByTag('collectible').length === 0, 'Destroyed tagged entity should be removed from tags');
+  })) passed++; else failed++;
+
+  if (test('should clear one type without affecting others', () => {
     manager.clear();
-    assert(manager.getEnemies().length === 0, 'Enemies should be cleared');
-    assert(manager.getPowerups().length === 0, 'Powerups should be cleared');
+    manager.create('enemy', {});
+    manager.create('enemy', {});
+    manager.create('projectile', {});
+    manager.clearType('enemy');
+    assert(manager.getByType('enemy').length === 0, 'Enemy bucket should be cleared');
+    assert(manager.getByType('projectile').length === 1, 'Other buckets should remain');
   })) passed++; else failed++;
 
-  // Test: 子弹分类
-  if (test('should categorize bullets as enemy or player', () => {
-    const bullet1 = manager.create(EntityType.BULLET, { isEnemy: false });
-    const bullet2 = manager.create(EntityType.BULLET, { isEnemy: true });
-    const playerBullets = manager.getPlayerBullets();
-    const enemyBullets = manager.getEnemyBullets();
-    assert(playerBullets.length === 1, 'Should have 1 player bullet');
-    assert(enemyBullets.length === 1, 'Should have 1 enemy bullet');
-  })) passed++; else failed++;
-
-  // Test: 实体统计
-  if (test('should return entity stats', () => {
-    manager.clearAll();
-    manager.create(EntityType.PLAYER, {});
-    manager.create(EntityType.ENEMY, {});
-    manager.create(EntityType.ENEMY, {});
+  if (test('should return generic entity stats', () => {
+    manager.clear();
+    manager.create('player', {});
+    manager.create('enemy', {});
+    manager.create('enemy', {});
     const stats = manager.getStats();
-    assert(stats.enemies === 2, 'Should have 2 enemies');
-    assert(stats.hasPlayer === true, 'Should have player');
+    assert(stats.total === 3, 'Should count all entities');
+    assert(stats.byType.enemy === 2, 'Should count entities by type');
+    assert(stats.byType.player === 1, 'Should count singleton type');
   })) passed++; else failed++;
 
   if (test('should integrate kinematics with force and gravity', () => {
-    const entity = new Entity(EntityType.PARTICLE, {
+    const entity = new Entity('particle', {
       x: 0,
       y: 0,
       mass: 2,
@@ -106,7 +103,7 @@ function run() {
   })) passed++; else failed++;
 
   if (test('should bounce on bounds using restitution', () => {
-    const entity = new Entity(EntityType.PARTICLE, {
+    const entity = new Entity('particle', {
       x: 4,
       y: 1,
       width: 1,

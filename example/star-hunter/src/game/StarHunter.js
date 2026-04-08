@@ -7,9 +7,7 @@ const readline = require('readline');
 
 // 引擎
 const { GameEngine, GAME_STATE: ENGINE_STATE } = require('../../../../src/engine/core/GameEngine');
-const { EventBus, GameEvents } = require('../../../../src/engine/core/EventBus');
-const { EntityManager } = require('../../../../src/engine/core/EntityManager');
-const { CollisionSystem } = require('../../../../src/engine/core/CollisionSystem');
+const { EventBus } = require('../../../../src/engine/core/EventBus');
 const { Renderer, COLORS } = require('../../../../src/engine/rendering/Renderer');
 const { InputHandler } = require('../../../../src/engine/input/InputHandler');
 const { KeyMapping, getAction } = require('../../../../src/engine/input/KeyMapping');
@@ -18,6 +16,19 @@ const { Banner } = require('./ui/Banner');
 const { Modal } = require('./ui/Modal');
 const { Layer } = require('./rendering/Layer');
 const { GAME_FLOW_STATE } = require('./GameState');
+const { STAR_HUNTER_EVENTS } = require('./GameEvents');
+const { StarHunterEntityManager } = require('./StarHunterEntityManager');
+const {
+  advanceStarfield,
+  renderStarfield,
+  renderPlayer,
+  renderShield,
+  renderEnemy,
+  renderBoss,
+  renderBullet,
+  renderPowerup,
+  renderParticle
+} = require('./rendering/StarHunterRenderer');
 const { strWidth, stripAnsi, padEndDisplay, center, repeatChar } = require('../../../../src/engine/rendering/ScreenBuffer');
 
 // 游戏实体
@@ -53,7 +64,10 @@ class StarHunter {
     this.runtimeOwned = !runtime;
     this.eventBus = runtime ? runtime.eventBus : new EventBus();
     this.engine = runtime ? runtime.engine : new GameEngine({ width: GAME_WIDTH, height: GAME_HEIGHT, frameRate: 50 });
-    this.entities = runtime ? runtime.entities : new EntityManager(this.eventBus);
+    this.entities = StarHunterEntityManager.adapt(runtime ? runtime.entities : null, this.eventBus);
+    if (runtime) {
+      runtime.entities = this.entities;
+    }
     this.renderer = runtime ? runtime.renderer : new Renderer(GAME_WIDTH, GAME_HEIGHT, this.stdout);
     this.input = runtime ? runtime.input : new InputHandler();
     this.hud = new HUD(GAME_WIDTH);
@@ -65,7 +79,6 @@ class StarHunter {
     this.enemySpawnSystem = new EnemySpawnSystem(this.eventBus, this.entities);
     this.bossSystem = new BossSystem(this.eventBus, this.entities);
     this.damageSystem = new DamageSystem(this.eventBus, this.entities);
-    this.collisionSystem = new CollisionSystem();
 
     // 游戏状态
     this.selectedIndex = 0;
@@ -80,6 +93,7 @@ class StarHunter {
     this.invincibleTimer = 0;
     this._showingBossWarning = false;
     this._bossTransition = null;
+    this.backgroundOffset = 0;
 
     // 按键状态
     this.keysPressed = new Set();
@@ -141,7 +155,10 @@ class StarHunter {
     this._cleanupTasks.push(this.input.onKey((key, keyInfo) => this._handleKey(key, keyInfo)));
 
     // 事件监听
-    this._cleanupTasks.push(this.eventBus.on(GameEvents.PLAY_SOUND, (data) => this._playSound(data.type || 'hit')));
+    this._cleanupTasks.push(this.eventBus.on(STAR_HUNTER_EVENTS.PLAY_SOUND, (data) => {
+      const type = typeof data === 'string' ? data : (data && data.type) || 'hit';
+      this._playSound(type);
+    }));
   }
 
   /**
@@ -171,7 +188,7 @@ class StarHunter {
     }
 
     // 滚动星空
-    this.renderer.scrollBackground();
+    this.backgroundOffset = advanceStarfield(this.backgroundOffset);
 
     // 更新玩家输入
     this._updatePlayerInput();
@@ -367,37 +384,37 @@ class StarHunter {
     // 清除并重绘背景
     let out = '\x1b[2J\x1b[H';  // Clear screen
     this.renderer.clear();
-    this.renderer.renderBackground();
+    renderStarfield(this.renderer, this.backgroundOffset);
 
     // 渲染敌人
     for (const enemy of this.entities.getEnemies()) {
-      this.renderer.renderEnemy(enemy);
+      renderEnemy(this.renderer, enemy);
     }
 
     // 渲染Boss
     if (this.entities.getBoss()) {
-      this.renderer.renderBoss(this.entities.getBoss());
+      renderBoss(this.renderer, this.entities.getBoss());
     }
 
     // 渲染道具
     for (const powerup of this.entities.getPowerups()) {
-      this.renderer.renderPowerup(powerup);
+      renderPowerup(this.renderer, powerup);
     }
 
     // 渲染子弹
     for (const bullet of this.entities.getBullets()) {
-      this.renderer.renderBullet(bullet);
+      renderBullet(this.renderer, bullet);
     }
 
     // 渲染粒子
     for (const particle of this.entities.getParticles()) {
-      this.renderer.renderParticle(particle);
+      renderParticle(this.renderer, particle);
     }
 
     // 渲染玩家
     if (player) {
-      this.renderer.renderPlayer(player, ship.art, this.invincibleTimer);
-      this.renderer.renderShield(player, player.width);
+      renderPlayer(this.renderer, player, ship.art, this.invincibleTimer);
+      renderShield(this.renderer, player, player.width);
     }
 
     // 渲染Banner覆盖层
@@ -537,7 +554,7 @@ class StarHunter {
 
     if (this.keysPressed.has(' ') && player.canShoot()) {
       player.resetShotCooldown();
-      this.eventBus.emit('playSound', 'shoot');
+      this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'shoot');
       const bullets = Bullet.createPlayerBullet(
         player.x + Math.floor(player.width / 2),
         player.y,
@@ -578,7 +595,7 @@ class StarHunter {
             // 横幅消失后生成Boss
             this.enemySpawnSystem.bossSpawned = true;
             this.bossSystem.spawnBoss(this.wave);
-            this.eventBus.emit('playSound', 'explode');
+            this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'explode');
             this._showingBossWarning = false;
           }
         });
@@ -586,7 +603,7 @@ class StarHunter {
         // 没有配置，直接生成Boss
         this.enemySpawnSystem.bossSpawned = true;
         this.bossSystem.spawnBoss(this.wave);
-        this.eventBus.emit('playSound', 'explode');
+        this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'explode');
         this._showingBossWarning = false;
       }
     }
@@ -718,7 +735,7 @@ class StarHunter {
       // 射击
       if (player.canShoot()) {
         player.resetShotCooldown();
-        this.eventBus.emit('playSound', 'shoot');
+        this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'shoot');
         const bullets = Bullet.createPlayerBullet(
           player.x + Math.floor(player.width / 2),
           player.y,
@@ -734,7 +751,7 @@ class StarHunter {
       if (this.powerCount > 0) {
         const bullets = this.playerSystem.firePower(this.powerCount);
         this.powerCount--;
-        this.eventBus.emit('playSound', 'explode');
+        this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'explode');
         for (const bullet of bullets) {
           this.entities.create('bullet', bullet);
         }
@@ -742,7 +759,7 @@ class StarHunter {
     } else if (key === 'e' || key === 'E') {
       // 开关护盾
       player.toggleShield();
-      this.eventBus.emit('playSound', player.shieldActive ? 'powerup' : 'hit');
+      this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, player.shieldActive ? 'powerup' : 'hit');
     }
   }
 
@@ -851,7 +868,7 @@ class StarHunter {
     this.lives--;
     if (this.lives <= 0) {
       this.engine.setState(GAME_FLOW_STATE.GAME_OVER);
-      this.eventBus.emit('playSound', 'gameOver');
+      this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'gameOver');
     } else {
       // 重生
       const player = Player.create(this.selectedShip, GAME_WIDTH, GAME_HEIGHT);
@@ -1046,7 +1063,7 @@ class StarHunter {
 
     this.score += 5000;
     this.enemySpawnSystem.bossDefeated();
-    this.eventBus.emit('playSound', 'victory');
+    this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'victory');
     this._startBossTransition();
   }
 
@@ -1107,7 +1124,7 @@ class StarHunter {
     const transition = this._bossTransition;
     if (!transition) return;
 
-    this.renderer.scrollBackground();
+    this.backgroundOffset = advanceStarfield(this.backgroundOffset);
 
     for (const particle of this.entities.getParticles()) {
       particle.update(dt, frameCount);

@@ -6,6 +6,7 @@
 const { Boss } = require('../entities/Boss');
 const { handleBossPhaseEntry } = require('../configs/bosses');
 const { GAME_CONSTANTS } = require('../configs/levels');
+const { STAR_HUNTER_EVENTS } = require('../GameEvents');
 
 class BossSystem {
   constructor(eventBus, entities) {
@@ -86,7 +87,7 @@ class BossSystem {
     boss.hp -= damage;
 
     // 发射音效
-    this.eventBus.emit('playSound', 'bossHit');
+    this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'bossHit');
 
     // 检查是否击败
     if (boss.hp <= 0) {

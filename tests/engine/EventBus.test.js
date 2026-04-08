@@ -2,7 +2,7 @@
  * EventBus 单元测试
  */
 
-const { EventBus, GameEvents } = require('../../src/engine/core/EventBus');
+const { EventBus } = require('../../src/engine/core/EventBus');
 
 function assert(condition, message) {
   if (!condition) {
@@ -83,13 +83,6 @@ function run() {
     bus.emit('test1', {});
     bus.emit('test2', {});
     assert(count === 2, 'Should not receive events after clear');
-  })) passed++; else failed++;
-
-  // Test: GameEvents 存在
-  if (test('should have all GameEvents defined', () => {
-    assert(GameEvents.BULLET_HIT_ENEMY === 'bulletHitEnemy', 'BULLET_HIT_ENEMY not defined');
-    assert(GameEvents.PLAYER_DESTROYED === 'playerDestroyed', 'PLAYER_DESTROYED not defined');
-    assert(GameEvents.GAME_OVER === 'gameOver', 'GAME_OVER not defined');
   })) passed++; else failed++;
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);

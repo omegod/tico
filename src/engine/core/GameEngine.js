@@ -3,7 +3,7 @@
  * CLI游戏引擎核心
  */
 
-const { EventBus, GameEvents } = require('./EventBus');
+const { EventBus } = require('./EventBus');
 const { EngineTime } = require('./EngineTime');
 
 const GAME_STATE = {
@@ -57,7 +57,6 @@ class GameEngine {
     this.lastFrameTime = Date.now();
     this.accumulator = 0;
     this.time.initialize(this.lastFrameTime);
-    this.eventBus.emit(GameEvents.GAME_START, { timestamp: this.lastFrameTime });
   }
 
   /**
@@ -86,7 +85,6 @@ class GameEngine {
 
     this.previousState = this.state;
     this.state = GAME_STATE.PAUSED;
-    this.eventBus.emit(GameEvents.GAME_PAUSE, {});
   }
 
   /**
@@ -97,7 +95,6 @@ class GameEngine {
 
     this.state = this.previousState || GAME_STATE.RUNNING;
     this.previousState = null;
-    this.eventBus.emit(GameEvents.GAME_RESUME, {});
   }
 
   /**

@@ -16,6 +16,8 @@ function run() {
   assert.ok(engine.PanelWidget);
   assert.ok(engine.DialogWidget);
   assert.ok(engine.measureText);
+  assert.strictEqual('GameEvents' in engine, false);
+  assert.strictEqual('EntityType' in engine, false);
 
   console.log('✓ Engine Exports tests passed');
   return true;

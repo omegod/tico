@@ -5,8 +5,8 @@
 const { Boss } = require('../../src/game/entities/Boss');
 const { handleBossPhaseEntry } = require('../../src/game/configs/bosses');
 const { EventBus } = require('../../../../src/engine/core/EventBus');
-const { EntityManager } = require('../../../../src/engine/core/EntityManager');
 const { StarHunter } = require('../../src/game/StarHunter');
+const { StarHunterEntityManager } = require('../../src/game/StarHunterEntityManager');
 
 function assert(condition, message) {
   if (!condition) {
@@ -104,7 +104,7 @@ function run() {
 
   if (test('should restore player during boss transition when player is missing', () => {
     const game = Object.create(StarHunter.prototype);
-    game.entities = new EntityManager(new EventBus());
+    game.entities = new StarHunterEntityManager(new EventBus());
     game.selectedShip = 0;
     game.missileCapacity = 10;
     game.missileReloadFrames = null;

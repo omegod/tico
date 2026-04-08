@@ -3,11 +3,11 @@
  */
 
 const { DamageSystem } = require('../../src/game/systems/DamageSystem');
-const { EntityManager } = require('../../../../src/engine/core/EntityManager');
 const { EventBus } = require('../../../../src/engine/core/EventBus');
 const { Player } = require('../../src/game/entities/Player');
 const { Enemy } = require('../../src/game/entities/Enemy');
 const { Bullet, BulletType } = require('../../src/game/entities/Bullet');
+const { StarHunterEntityManager } = require('../../src/game/StarHunterEntityManager');
 
 function assert(condition, message) {
   if (!condition) {
@@ -36,7 +36,7 @@ function run() {
   // Test: 创建 DamageSystem
   if (test('should create DamageSystem', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
     assert(damageSystem !== null, 'DamageSystem should be created');
   })) passed++; else failed++;
@@ -44,7 +44,7 @@ function run() {
   // Test: update 方法存在且可调用
   if (test('should have update method', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
     assert(typeof damageSystem.update === 'function', 'update should be a function');
   })) passed++; else failed++;
@@ -52,7 +52,7 @@ function run() {
   // Test: update 接受 dt 和 frameCount 参数
   if (test('should accept dt and frameCount parameters', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
     // 这应该不会抛出错误
     damageSystem.update(16, 1);
@@ -61,7 +61,7 @@ function run() {
   // Test: _updateBullets 内部使用 dt 和 frameCount
   if (test('should update bullets with dt and frameCount', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
 
     // 创建一个玩家子弹
@@ -86,7 +86,7 @@ function run() {
   // Test: 敌人子弹向下移动
   if (test('should move enemy bullets downward', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
 
     // 创建一个敌人子弹
@@ -103,7 +103,7 @@ function run() {
   // Test: 出界子弹被标记为 inactive
   if (test('should mark off-screen bullets as inactive', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
     damageSystem.screenWidth = 80;
     damageSystem.screenHeight = 32;
@@ -128,7 +128,7 @@ function run() {
   // Test: 玩家子弹击中敌人
   if (test('should detect player bullet hitting enemy', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
 
     // 创建一个玩家子弹在敌人位置
@@ -159,7 +159,7 @@ function run() {
   // Test: 敌人被击中后被销毁
   if (test('should destroy enemy when HP <= 0', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
 
     let enemyDestroyed = false;
@@ -191,7 +191,7 @@ function run() {
 
   if (test('should respect bullet hit cooldown for sustained damage missiles', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
 
     const enemy = Enemy.create(0, 0, 0, 0, 80);
@@ -219,7 +219,7 @@ function run() {
 
   if (test('should wear down piercing missiles with integrity', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const damageSystem = new DamageSystem(eventBus, entities);
 
     const enemy = Enemy.create(0, 0, 0, 0, 80);

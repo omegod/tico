@@ -3,7 +3,7 @@
  */
 
 const { EventBus } = require('../../../../src/engine/core/EventBus');
-const { EntityManager } = require('../../../../src/engine/core/EntityManager');
+const { StarHunterEntityManager } = require('../../src/game/StarHunterEntityManager');
 const { Player } = require('../../src/game/entities/Player');
 const { PlayerSystem } = require('../../src/game/systems/PlayerSystem');
 
@@ -33,7 +33,7 @@ function run() {
 
   if (test('should deploy gyro field for TWO_ROW ships', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const system = new PlayerSystem(eventBus, entities);
     entities.setPlayer(Player.create(1, 80, 32));
 
@@ -45,7 +45,7 @@ function run() {
 
   if (test('should charge and release rail salvo for sniper ships', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const system = new PlayerSystem(eventBus, entities);
     entities.setPlayer(Player.create(2, 80, 32));
 
@@ -57,7 +57,7 @@ function run() {
 
   if (test('should deploy hovering shield nodes and recover for guardian ships', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const system = new PlayerSystem(eventBus, entities);
     const player = Player.create(3, 80, 32);
     player.hp = 120;
@@ -74,7 +74,7 @@ function run() {
 
   if (test('should create three ricochet bullets for storm ships', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const system = new PlayerSystem(eventBus, entities);
     entities.setPlayer(Player.create(4, 80, 32));
 
@@ -86,7 +86,7 @@ function run() {
 
   if (test('should create upward barrage for ultimate ships', () => {
     const eventBus = new EventBus();
-    const entities = new EntityManager(eventBus);
+    const entities = new StarHunterEntityManager(eventBus);
     const system = new PlayerSystem(eventBus, entities);
     entities.setPlayer(Player.create(5, 80, 32));
 

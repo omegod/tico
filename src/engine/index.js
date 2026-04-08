@@ -2,8 +2,8 @@ const { EngineApp } = require('./app/EngineApp');
 const { GameEngine, GAME_STATE } = require('./core/GameEngine');
 const { EngineTime } = require('./core/EngineTime');
 const { Sequence } = require('./core/Sequence');
-const { EventBus, GameEvents } = require('./core/EventBus');
-const { EntityManager, Entity, EntityType } = require('./core/EntityManager');
+const { EventBus } = require('./core/EventBus');
+const { EntityManager, Entity } = require('./core/EntityManager');
 const { CollisionSystem } = require('./core/CollisionSystem');
 const { InputHandler } = require('./input/InputHandler');
 const { InputActionContext } = require('./input/InputHandler');
@@ -64,10 +64,8 @@ module.exports = {
   EngineTime,
   Sequence,
   EventBus,
-  GameEvents,
   EntityManager,
   Entity,
-  EntityType,
   CollisionSystem,
   InputHandler,
   InputActionContext,

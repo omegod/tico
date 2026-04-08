@@ -101,7 +101,7 @@ The package root re-exports the engine surface from `src/engine/index.js`.
 
 - App and loop: `EngineApp`, `GameEngine`, `GAME_STATE`, `EngineTime`
 - Scene and nodes: `Scene`, `SceneManager`, `Node2D`, `SpriteNode`, `TextNode`, `TilemapNode`
-- Systems: `EventBus`, `GameEvents`, `EntityManager`, `Entity`, `EntityType`, `CollisionSystem`, `PhysicsWorld`
+- Systems: `EventBus`, `EntityManager`, `Entity`, `CollisionSystem`, `PhysicsWorld`
 - Input: `InputHandler`, `InputActionContext`, `ActionMap`, `KeyMapping`, `getAction`, `matches`
 - Rendering: `Renderer`, `COLORS`, `Layer`, `Camera2D`, `ScreenBuffer`
 - Content, layout, and widgets: `ResourceManager`, `AnimationPlayer`, `Tween`, `EASING`, `BORDER_STYLES`, `measureText`, `measureLines`, `PanelWidget`, `DialogWidget`, `TextWidget`, `BarWidget`, `MenuWidget`

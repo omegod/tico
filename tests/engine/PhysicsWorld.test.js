@@ -1,6 +1,6 @@
 const assert = require('assert');
 const { PhysicsWorld } = require('../../src/engine/physics/PhysicsWorld');
-const { Entity, EntityType } = require('../../src/engine/core/EntityManager');
+const { Entity } = require('../../src/engine/core/EntityManager');
 
 function run() {
   console.log('Testing PhysicsWorld...');
@@ -24,7 +24,7 @@ function run() {
   const hit = physics.raycast({ x: 0, y: 0 }, { x: 3, y: 3 });
   assert.ok(hit);
 
-  const moving = new Entity(EntityType.PARTICLE, {
+  const moving = new Entity('particle', {
     x: 1,
     y: 1,
     width: 1,

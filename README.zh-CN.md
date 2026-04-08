@@ -102,7 +102,7 @@ npm test
 
 - 应用与主循环：`EngineApp`、`GameEngine`、`GAME_STATE`、`EngineTime`
 - 场景与节点：`Scene`、`SceneManager`、`Node2D`、`SpriteNode`、`TextNode`、`TilemapNode`
-- 系统：`EventBus`、`GameEvents`、`EntityManager`、`Entity`、`EntityType`、`CollisionSystem`、`PhysicsWorld`
+- 系统：`EventBus`、`EntityManager`、`Entity`、`CollisionSystem`、`PhysicsWorld`
 - 输入：`InputHandler`、`InputActionContext`、`ActionMap`、`KeyMapping`、`getAction`、`matches`
 - 渲染：`Renderer`、`COLORS`、`Layer`、`Camera2D`、`ScreenBuffer`
 - 内容与 UI：`ResourceManager`、`AnimationPlayer`、`Tween`、`EASING`、`HUD`、`Banner`、`Modal`

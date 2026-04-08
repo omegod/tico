@@ -54,7 +54,7 @@ const { EngineApp, Scene } = require('./src');
 The package root re-exports the engine surface from `src/engine/index.js`.
 
 - App and loop: `EngineApp`, `GameEngine`, `GAME_STATE`, `EngineTime`
-- Core: `EventBus`, `GameEvents`, `EntityManager`, `Entity`, `EntityType`, `CollisionSystem`, `Sequence`
+- Core: `EventBus`, `EntityManager`, `Entity`, `CollisionSystem`, `Sequence`
 - Scene graph: `Scene`, `SceneManager`, `Node2D`, `SpriteNode`, `TextNode`, `TilemapNode`
 - Input: `InputHandler`, `InputActionContext`, `ActionMap`, `KeyMapping`, `getAction`, `matches`
 - Rendering: `Renderer`, `COLORS`, `Layer`, `RenderSpace`, `Camera2D`, `ScreenBuffer`, `Cell`
@@ -285,8 +285,8 @@ Main methods:
 - `drawText(x, y, lines, color, bold, layer, bgColor)`
 - `drawArt(x, y, art, color, bold, layer, bgColor)`
 - `fillRect(x, y, width, height, char = ' ', color, bold, layer, bgColor)`
-- `renderBackground(layer)`
-- `scrollBackground()`
+- `renderSprite(sprite, options)`
+- `renderGlyph(glyph, options)`
 
 Use `Layer` to control draw priority and `COLORS` for ANSI styling.
 Use `RenderSpace.WORLD` for camera-projected drawing and `RenderSpace.SCREEN` for terminal-space overlays.
@@ -587,7 +587,7 @@ Methods:
 | Method | Input | Output | Description |
 |---|---|---|---|
 | `onRender(callback)` | `callback(dt, frameCount, alpha)` | `void` | Registers the per-frame render callback. |
-| `init()` | none | `void` | Starts the loop bookkeeping and emits `GameEvents.GAME_START`. |
+| `init()` | none | `void` | Starts the loop bookkeeping. |
 | `stop()` | none | `void` | Stops the loop, clears the timeout, and clears the event bus. |
 | `pause()` | none | `void` | Pauses any active non-boot, non-stopped state and stores the previous state. |
 | `resume()` | none | `void` | Restores the previous state after pause. |
@@ -777,30 +777,7 @@ Methods:
 | `once(event, callback)` | `event: string`, `callback(data)` | `void` | Subscribes for one delivery only. |
 | `clear()` | none | `void` | Removes all listeners. |
 
-#### `GameEvents`
-
-| Event | Meaning |
-|---|---|
-| `BULLET_HIT_ENEMY` | Player bullet hit an enemy. |
-| `BULLET_HIT_BOSS` | Player bullet hit the boss. |
-| `BULLET_HIT_PLAYER` | Enemy bullet hit the player. |
-| `ENEMY_DESTROYED` | Enemy was destroyed. |
-| `BOSS_DESTROYED` | Boss was destroyed. |
-| `PLAYER_DAMAGED` | Player took damage. |
-| `PLAYER_DESTROYED` | Player was destroyed. |
-| `PLAYER_COLLISION_ENEMY` | Player collided with an enemy. |
-| `PLAYER_COLLISION_BOSS` | Player collided with the boss. |
-| `POWERUP_COLLECTED` | A power-up was collected. |
-| `WAVE_START` | A wave started. |
-| `WAVE_CLEAR` | A wave was cleared. |
-| `BOSS_SPAWN` | A boss spawned. |
-| `GAME_START` | Game loop started. |
-| `GAME_PAUSE` | Game paused. |
-| `GAME_RESUME` | Game resumed. |
-| `GAME_OVER` | Game over event. |
-| `VICTORY` | Victory event. |
-| `EXPLOSION` | Explosion effect requested. |
-| `PLAY_SOUND` | Sound effect requested. |
+`EventBus` intentionally does not ship gameplay event names. Define project-specific event constants in your game or plugin layer.
 
 #### `Entity`
 
@@ -825,10 +802,7 @@ Methods:
 | `data.maxSpeed` | number \| null | `null` | Maximum speed allowed by kinematic integration. |
 | `data.bounds` | `{ x, y, width, height } \| null` | `null` | Optional world bounds used for clamp/bounce. |
 | `data.physicsEnabled` | boolean | auto | Forces kinematic integration on even if only velocity is provided. |
-| `data.isEnemy` | boolean | omitted | Bullet-specific flag. |
-| `data.damage` | number | omitted | Bullet damage payload. |
-| `data.pierce` | boolean | omitted | Piercing flag. |
-| `data.char` | string | omitted | Single-character render symbol. |
+| `data.*` | any | copied through | Additional keys are copied onto the entity instance unchanged. |
 
 Returns: `Entity`
 
@@ -849,24 +823,13 @@ Methods:
 | `updateKinematics(dt, options)` | `dt: number`, `options?: { gravity?, bounds? }` | `this` | Integrates velocity, acceleration, force, gravity, and optional bounds response. |
 | `destroy()` | none | `void` | Marks the entity inactive. |
 
-#### `EntityType`
-
-| Value | Meaning |
-|---|---|
-| `PLAYER` | Player entity. |
-| `ENEMY` | Standard enemy entity. |
-| `BOSS` | Boss entity. |
-| `BULLET` | Bullet entity. |
-| `POWERUP` | Collectible power-up. |
-| `PARTICLE` | Visual particle. |
-
 #### `EntityManager`
 
-`new EntityManager(eventBus)`
+`new EntityManager(eventBus = null)`
 
 | Input | Type | Description |
 |---|---|---|
-| `eventBus` | `EventBus` | Optional shared bus; a new one is created if omitted. |
+| `eventBus` | `EventBus \| null` | Optional shared bus reference. |
 
 Returns: `EntityManager`
 
@@ -875,22 +838,19 @@ Methods:
 | Method | Input | Output | Description |
 |---|---|---|---|
 | `create(type, data)` | `type: string`, `data: object \| Entity` | `Entity` | Creates a new entity or stores an existing entity instance. |
-| `setPlayer(player)` | `player: Entity` | `void` | Sets the active player entity. |
+| `add(entity, type?)` | `entity: Entity`, `type?: string` | `Entity` | Stores an entity instance under a type bucket. |
+| `set(type, entity)` | `type: string`, `entity: Entity` | `Entity` | Replaces all entities of one type with the provided entity. |
 | `destroy(entity)` | `entity: Entity` | `void` | Destroys and removes an entity from all categories and tags. |
+| `remove(entity)` | `entity: Entity` | `boolean` | Removes an entity without calling `destroy()`. |
 | `addTag(entity, tag)` | `entity: Entity`, `tag: string` | `void` | Adds a tag to an entity index. |
 | `getByTag(tag)` | `tag: string` | `Entity[]` | Returns all tagged entities. |
-| `getEnemies()` | none | `Entity[]` | Returns enemy entities. |
-| `getEnemyBullets()` | none | `Entity[]` | Returns bullets whose `isEnemy` flag is true. |
-| `getPlayerBullets()` | none | `Entity[]` | Returns bullets whose `isEnemy` flag is false. |
-| `getPlayer()` | none | `Entity \| null` | Returns the player entity. |
-| `getBoss()` | none | `Entity \| null` | Returns the boss entity. |
-| `getPowerups()` | none | `Entity[]` | Returns all power-ups. |
-| `getParticles()` | none | `Entity[]` | Returns all particles. |
-| `getBullets()` | none | `Entity[]` | Returns all bullets. |
-| `update(dt)` | `dt: number` | `void` | Updates and prunes all entity categories. |
-| `clear()` | none | `void` | Clears everything except the player. |
-| `clearAll()` | none | `void` | Clears every category, including the player. |
-| `getStats()` | none | object | Returns counts for enemies, bullets, power-ups, particles, and booleans for boss/player presence. |
+| `getAll()` | none | `Entity[]` | Returns all tracked entities. |
+| `getByType(type)` | `type: string` | `Entity[]` | Returns the bucket for one entity type. |
+| `getFirstByType(type)` | `type: string` | `Entity \| null` | Returns the first entity in a type bucket. |
+| `clearType(type)` | `type: string` | `number` | Removes all entities of one type and returns the number removed. |
+| `update(dt)` | `dt: number` | `void` | Updates all entities and removes inactive ones. |
+| `clear()` | none | `void` | Clears all entities and tags. |
+| `getStats()` | none | object | Returns `{ total, byType }`. |
 
 #### `CollisionSystem`
 
@@ -903,12 +863,9 @@ Methods:
 | `checkCollision(a, b, margin)` | `a`, `b` with `x/y/width/height`, `margin?: number` | `boolean` | AABB overlap test. |
 | `pointInRect(px, py, rect)` | `px: number`, `py: number`, `rect: { x, y, width, height }` | `boolean` | Checks whether a point lies inside a rectangle. |
 | `circleCollision(a, b)` | `a`, `b` with `x/y/radius` | `boolean` | Circle overlap test. |
-| `checkPlayerBulletsVsEnemies(playerBullets, enemies, margin)` | arrays | `{ bullet, enemy }[]` | Returns bullet-enemy collisions. |
-| `checkPlayerBulletsVsBoss(playerBullets, boss, margin)` | arrays/object | `{ bullet, boss }[]` | Returns bullet-boss collisions. |
-| `checkEnemyBulletsVsPlayer(enemyBullets, player, margin)` | arrays/object | `{ bullet }[]` | Returns enemy bullet-player collisions. |
-| `checkEnemiesVsPlayer(enemies, player, margin)` | arrays/object | `{ enemy }[]` | Returns enemy-player collisions. |
-| `checkBossVsPlayer(boss, player, margin)` | object/object | `boolean` | Returns whether boss and player overlap. |
-| `checkPowerupsVsPlayer(powerups, player, margin)` | array/object | `{ powerup }[]` | Returns power-up pickups. |
+| `findPairs(sources, targets, options)` | arrays + options | `{ source, target }[]` | Returns all overlapping pairs between two collections. |
+| `findCollisionsFor(entity, targets, margin)` | entity + array | `object[]` | Returns all colliders that overlap one entity. |
+| `collidesWithAny(entity, targets, margin)` | entity + array | `boolean` | Returns whether one entity overlaps anything in a collection. |
 | `isOnScreen(entity, screenWidth, screenHeight, margin)` | entity + bounds | `boolean` | Returns whether an entity stays within the screen region. |
 
 #### `PhysicsWorld`
@@ -962,15 +919,8 @@ Methods:
 | `drawArt(...)` | `x, y, art, color?, bold?, layer?, bgColor?` | `void` | Draws ASCII art rows. |
 | `fillRect(...)` | `x, y, width, height, char?, color?, bold?, layer?, bgColor?` | `void` | Fills a rectangle. |
 | `clear()` | none | `void` | Clears the back buffer. |
-| `renderBackground(layer)` | `layer?: number` | `void` | Fills the screen with the starfield background. |
-| `scrollBackground()` | none | `void` | Advances the starfield scroll offset. |
-| `renderPlayer(player, shipArt, invincibleTimer, layer)` | player + art | `void` | Renders the ship and invincibility blinking. |
-| `renderShield(player, maxWidth, layer)` | player + width | `void` | Renders the shield outline. |
-| `renderEnemy(enemy, layer)` | enemy | `void` | Renders an enemy sprite. |
-| `renderBoss(boss, layer)` | boss | `void` | Renders a boss sprite. |
-| `renderBullet(bullet, layer)` | bullet | `void` | Renders one bullet or bullet block. |
-| `renderPowerup(powerup, layer)` | power-up | `void` | Renders a power-up with glow. |
-| `renderParticle(particle, layer)` | particle | `void` | Renders a particle with life-based color. |
+| `renderSprite(sprite, options)` | object + options | `void` | Renders multi-line art for any active sprite-like object. |
+| `renderGlyph(glyph, options)` | object + options | `void` | Renders one glyph or a filled glyph block. |
 | `present()` | none | `void` | Clears the terminal and writes the current buffer. |
 | `getBuffer()` | none | `ScreenBuffer` | Returns the backing buffer. |
 | `toString()` | none | `string` | Returns the current ANSI-rendered frame. |

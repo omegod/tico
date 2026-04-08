@@ -6,6 +6,7 @@
 const { GAME_CONSTANTS } = require('../configs/levels');
 const { createExplosion } = require('../entities/Particle');
 const { Powerup } = require('../entities/Powerup');
+const { STAR_HUNTER_EVENTS } = require('../GameEvents');
 
 class DamageSystem {
   constructor(eventBus, entities) {
@@ -180,7 +181,7 @@ class DamageSystem {
             this.entities.create('particle', p);
           }
 
-          this.eventBus.emit('playSound', 'hit');
+          this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'hit');
 
           // 非穿透弹移除
           if (!bullet.pierce) {
@@ -192,7 +193,7 @@ class DamageSystem {
           // 检查敌人是否死亡
           if (enemy.hp <= 0) {
             this.entities.destroy(enemy);
-            this.eventBus.emit('playSound', 'explode');
+            this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'explode');
 
             const explosion = createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, 'normal');
             for (const p of explosion) {
@@ -242,7 +243,7 @@ class DamageSystem {
           this.entities.create('particle', p);
         }
 
-        this.eventBus.emit('playSound', 'bossHit');
+        this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'bossHit');
 
         if (!bullet.pierce) {
           bullet.active = false;
@@ -253,7 +254,7 @@ class DamageSystem {
         // 检查Boss是否死亡
         if (boss.hp <= 0) {
           this.entities.destroy(boss);
-          this.eventBus.emit('playSound', 'victory');
+          this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'victory');
 
           const explosion = createExplosion(boss.x + boss.width/2, boss.y + boss.height/2, 'large', null, 40);
           for (const p of explosion) {
@@ -290,9 +291,9 @@ class DamageSystem {
         if (result.blocked) {
           // 无敌状态
         } else if (result.shieldDamage > 0) {
-          this.eventBus.emit('playSound', 'hit');
+          this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'hit');
         } else {
-          this.eventBus.emit('playSound', 'hit');
+          this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'hit');
         }
 
         if (player.hp <= 0) {
@@ -324,7 +325,7 @@ class DamageSystem {
       if (enemy.collidesWith(player, 1)) {
         // 玩家受伤
         const result = player.takeDamage(30);
-        this.eventBus.emit('playSound', 'hit');
+        this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'hit');
 
         // 敌人受伤
         const enemyDamage = 50 * (1 - enemy.defense);
@@ -348,7 +349,7 @@ class DamageSystem {
         // 检查敌人死亡
         if (enemy.hp <= 0) {
           this.entities.destroy(enemy);
-          this.eventBus.emit('playSound', 'explode');
+          this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'explode');
 
           const explosion = createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, 'normal');
           for (const p of explosion) {
@@ -384,7 +385,7 @@ class DamageSystem {
     if (boss.collidesWith(player, 1)) {
       // 玩家受伤
       const result = player.takeDamage(50);
-      this.eventBus.emit('playSound', 'hit');
+      this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'hit');
 
       // Boss受伤
       const bossDamage = 100 * (1 - boss.defense);
@@ -408,7 +409,7 @@ class DamageSystem {
       // 检查Boss死亡
       if (boss.hp <= 0) {
         this.entities.destroy(boss);
-        this.eventBus.emit('playSound', 'victory');
+        this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'victory');
 
         const explosion = createExplosion(boss.x + boss.width/2, boss.y + boss.height/2, 'large', null, 40);
         for (const p of explosion) {
@@ -446,7 +447,7 @@ class DamageSystem {
 
       if (powerup.collidesWith(player, 2)) {
         powerup.active = false;
-        this.eventBus.emit('playSound', 'powerup');
+        this.eventBus.emit(STAR_HUNTER_EVENTS.PLAY_SOUND, 'powerup');
 
         if (this.onPowerupCollected) {
           this.onPowerupCollected(powerup);

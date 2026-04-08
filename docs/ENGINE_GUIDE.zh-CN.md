@@ -54,7 +54,7 @@ const { EngineApp, Scene } = require('./src');
 包入口会转出 `src/engine/index.js` 中的公共 API。
 
 - 应用与主循环：`EngineApp`、`GameEngine`、`GAME_STATE`、`EngineTime`
-- 核心：`EventBus`、`GameEvents`、`EntityManager`、`Entity`、`EntityType`、`CollisionSystem`、`Sequence`
+- 核心：`EventBus`、`EntityManager`、`Entity`、`CollisionSystem`、`Sequence`
 - 场景树：`Scene`、`SceneManager`、`Node2D`、`SpriteNode`、`TextNode`、`TilemapNode`
 - 输入：`InputHandler`、`InputActionContext`、`ActionMap`、`KeyMapping`、`getAction`、`matches`
 - 渲染：`Renderer`、`COLORS`、`Layer`、`RenderSpace`、`Camera2D`、`ScreenBuffer`、`Cell`
@@ -285,8 +285,8 @@ if (inputContext.consume('LEFT')) {
 - `drawText(x, y, lines, color, bold, layer, bgColor)`
 - `drawArt(x, y, art, color, bold, layer, bgColor)`
 - `fillRect(x, y, width, height, char = ' ', color, bold, layer, bgColor)`
-- `renderBackground(layer)`
-- `scrollBackground()`
+- `renderSprite(sprite, options)`
+- `renderGlyph(glyph, options)`
 
 使用 `Layer` 控制绘制优先级，使用 `COLORS` 进行 ANSI 样式控制。
 使用 `RenderSpace.WORLD` 表示跟随相机的世界坐标，使用 `RenderSpace.SCREEN` 表示终端屏幕坐标。
@@ -587,7 +587,7 @@ my-game/
 | 方法 | 输入 | 输出 | 说明 |
 |---|---|---|---|
 | `onRender(callback)` | `callback(dt, frameCount, alpha)` | `void` | 注册每帧渲染回调。 |
-| `init()` | 无 | `void` | 启动循环计时，并派发 `GameEvents.GAME_START`。 |
+| `init()` | 无 | `void` | 启动循环计时。 |
 | `stop()` | 无 | `void` | 停止循环、清理定时器并清空事件总线。 |
 | `pause()` | 无 | `void` | 暂停任意活动中的非 `BOOT` / 非 `STOPPED` 状态，并保存暂停前状态。 |
 | `resume()` | 无 | `void` | 从暂停状态恢复到之前的状态。 |
@@ -777,30 +777,7 @@ my-game/
 | `once(event, callback)` | `event: string`，`callback(data)` | `void` | 仅订阅一次。 |
 | `clear()` | 无 | `void` | 清除所有监听。 |
 
-#### `GameEvents`
-
-| 事件 | 含义 |
-|---|---|
-| `BULLET_HIT_ENEMY` | 玩家子弹命中敌人。 |
-| `BULLET_HIT_BOSS` | 玩家子弹命中 Boss。 |
-| `BULLET_HIT_PLAYER` | 敌方子弹命中玩家。 |
-| `ENEMY_DESTROYED` | 敌人被销毁。 |
-| `BOSS_DESTROYED` | Boss 被销毁。 |
-| `PLAYER_DAMAGED` | 玩家受到伤害。 |
-| `PLAYER_DESTROYED` | 玩家被销毁。 |
-| `PLAYER_COLLISION_ENEMY` | 玩家与敌人碰撞。 |
-| `PLAYER_COLLISION_BOSS` | 玩家与 Boss 碰撞。 |
-| `POWERUP_COLLECTED` | 收集到道具。 |
-| `WAVE_START` | 波次开始。 |
-| `WAVE_CLEAR` | 波次清空。 |
-| `BOSS_SPAWN` | Boss 出现。 |
-| `GAME_START` | 游戏开始。 |
-| `GAME_PAUSE` | 游戏暂停。 |
-| `GAME_RESUME` | 游戏继续。 |
-| `GAME_OVER` | 游戏失败。 |
-| `VICTORY` | 游戏胜利。 |
-| `EXPLOSION` | 请求爆炸特效。 |
-| `PLAY_SOUND` | 请求播放音效。 |
+`EventBus` 本身不再内置任何玩法事件名。项目自有的事件常量应定义在游戏或插件层。
 
 #### `Entity`
 
@@ -825,10 +802,7 @@ my-game/
 | `data.maxSpeed` | number \| null | `null` | 运动学积分允许的最大速度。 |
 | `data.bounds` | `{ x, y, width, height } \| null` | `null` | 用于夹紧 / 反弹的可选世界边界。 |
 | `data.physicsEnabled` | boolean | 自动判断 | 即使只提供速度，也强制启用运动学积分。 |
-| `data.isEnemy` | boolean | 省略 | 子弹专用标记。 |
-| `data.damage` | number | 省略 | 子弹伤害。 |
-| `data.pierce` | boolean | 省略 | 穿透标记。 |
-| `data.char` | string | 省略 | 单字符表示。 |
+| `data.*` | any | 原样复制 | 其余字段会原样挂到实体实例上。 |
 
 返回值：`Entity`
 
@@ -849,24 +823,13 @@ my-game/
 | `updateKinematics(dt, options)` | `dt: number`，`options?: { gravity?, bounds? }` | `this` | 积分 velocity / acceleration / force / gravity，并解析可选边界。 |
 | `destroy()` | 无 | `void` | 将实体标记为失活。 |
 
-#### `EntityType`
-
-| 值 | 含义 |
-|---|---|
-| `PLAYER` | 玩家实体。 |
-| `ENEMY` | 普通敌人实体。 |
-| `BOSS` | Boss 实体。 |
-| `BULLET` | 子弹实体。 |
-| `POWERUP` | 可拾取道具。 |
-| `PARTICLE` | 粒子实体。 |
-
 #### `EntityManager`
 
-`new EntityManager(eventBus)`
+`new EntityManager(eventBus = null)`
 
 | 输入 | 类型 | 说明 |
 |---|---|---|
-| `eventBus` | `EventBus` | 可选共享总线；省略时会创建新实例。 |
+| `eventBus` | `EventBus \| null` | 可选共享总线引用。 |
 
 返回值：`EntityManager`
 
@@ -875,22 +838,19 @@ my-game/
 | 方法 | 输入 | 输出 | 说明 |
 |---|---|---|---|
 | `create(type, data)` | `type: string`，`data: object \| Entity` | `Entity` | 创建新实体，或直接存储已有实体实例。 |
-| `setPlayer(player)` | `player: Entity` | `void` | 设置当前玩家实体。 |
+| `add(entity, type?)` | `entity: Entity`，`type?: string` | `Entity` | 将实体放入某个类型桶。 |
+| `set(type, entity)` | `type: string`，`entity: Entity` | `Entity` | 用一个实体替换某个类型下的所有实体。 |
 | `destroy(entity)` | `entity: Entity` | `void` | 销毁实体并从分类和标签中移除。 |
+| `remove(entity)` | `entity: Entity` | `boolean` | 直接移除实体但不调用 `destroy()`。 |
 | `addTag(entity, tag)` | `entity: Entity`，`tag: string` | `void` | 给实体添加标签。 |
 | `getByTag(tag)` | `tag: string` | `Entity[]` | 返回所有拥有该标签的实体。 |
-| `getEnemies()` | 无 | `Entity[]` | 返回敌人数组。 |
-| `getEnemyBullets()` | 无 | `Entity[]` | 返回 `isEnemy` 为真的子弹。 |
-| `getPlayerBullets()` | 无 | `Entity[]` | 返回 `isEnemy` 为假的子弹。 |
-| `getPlayer()` | 无 | `Entity \| null` | 返回玩家实体。 |
-| `getBoss()` | 无 | `Entity \| null` | 返回 Boss 实体。 |
-| `getPowerups()` | 无 | `Entity[]` | 返回所有道具。 |
-| `getParticles()` | 无 | `Entity[]` | 返回所有粒子。 |
-| `getBullets()` | 无 | `Entity[]` | 返回所有子弹。 |
-| `update(dt)` | `dt: number` | `void` | 更新并清理所有实体分类。 |
-| `clear()` | 无 | `void` | 清空除玩家外的所有实体。 |
-| `clearAll()` | 无 | `void` | 清空所有实体，包括玩家。 |
-| `getStats()` | 无 | object | 返回敌人、子弹、道具、粒子计数，以及 Boss / 玩家是否存在。 |
+| `getAll()` | 无 | `Entity[]` | 返回所有实体。 |
+| `getByType(type)` | `type: string` | `Entity[]` | 返回某个类型桶里的实体。 |
+| `getFirstByType(type)` | `type: string` | `Entity \| null` | 返回某个类型桶中的首个实体。 |
+| `clearType(type)` | `type: string` | `number` | 清空某个类型并返回删除数量。 |
+| `update(dt)` | `dt: number` | `void` | 更新所有实体，并移除失活实体。 |
+| `clear()` | 无 | `void` | 清空全部实体与标签。 |
+| `getStats()` | 无 | object | 返回 `{ total, byType }`。 |
 
 #### `CollisionSystem`
 
@@ -903,12 +863,9 @@ my-game/
 | `checkCollision(a, b, margin)` | `a`、`b` 具备 `x/y/width/height`，`margin?: number` | `boolean` | AABB 碰撞检测。 |
 | `pointInRect(px, py, rect)` | `px: number`，`py: number`，`rect: { x, y, width, height }` | `boolean` | 点是否在矩形内。 |
 | `circleCollision(a, b)` | `a`、`b` 具备 `x/y/radius` | `boolean` | 圆形碰撞检测。 |
-| `checkPlayerBulletsVsEnemies(playerBullets, enemies, margin)` | 数组 | `{ bullet, enemy }[]` | 玩家子弹与敌人碰撞结果。 |
-| `checkPlayerBulletsVsBoss(playerBullets, boss, margin)` | 数组 / 对象 | `{ bullet, boss }[]` | 玩家子弹与 Boss 碰撞结果。 |
-| `checkEnemyBulletsVsPlayer(enemyBullets, player, margin)` | 数组 / 对象 | `{ bullet }[]` | 敌方子弹与玩家碰撞结果。 |
-| `checkEnemiesVsPlayer(enemies, player, margin)` | 数组 / 对象 | `{ enemy }[]` | 敌人与玩家碰撞结果。 |
-| `checkBossVsPlayer(boss, player, margin)` | 对象 / 对象 | `boolean` | Boss 与玩家是否重叠。 |
-| `checkPowerupsVsPlayer(powerups, player, margin)` | 数组 / 对象 | `{ powerup }[]` | 道具拾取结果。 |
+| `findPairs(sources, targets, options)` | 数组 + 选项 | `{ source, target }[]` | 返回两组对象之间所有重叠配对。 |
+| `findCollisionsFor(entity, targets, margin)` | 实体 + 数组 | `object[]` | 返回与单个实体重叠的所有对象。 |
+| `collidesWithAny(entity, targets, margin)` | 实体 + 数组 | `boolean` | 判断单个实体是否与集合中任意对象重叠。 |
 | `isOnScreen(entity, screenWidth, screenHeight, margin)` | 实体 + 屏幕边界 | `boolean` | 判断实体是否仍在屏幕范围内。 |
 
 #### `PhysicsWorld`
@@ -962,15 +919,8 @@ my-game/
 | `drawArt(...)` | `x, y, art, color?, bold?, layer?, bgColor?` | `void` | 绘制 ASCII 艺术行。 |
 | `fillRect(...)` | `x, y, width, height, char?, color?, bold?, layer?, bgColor?` | `void` | 填充矩形区域。 |
 | `clear()` | 无 | `void` | 清空后缓冲区。 |
-| `renderBackground(layer)` | `layer?: number` | `void` | 生成星空背景。 |
-| `scrollBackground()` | 无 | `void` | 推进星空滚动偏移。 |
-| `renderPlayer(player, shipArt, invincibleTimer, layer)` | 玩家 + 贴图 | `void` | 渲染战机与无敌闪烁。 |
-| `renderShield(player, maxWidth, layer)` | 玩家 + 宽度 | `void` | 渲染护盾轮廓。 |
-| `renderEnemy(enemy, layer)` | 敌人 | `void` | 渲染敌机。 |
-| `renderBoss(boss, layer)` | Boss | `void` | 渲染 Boss。 |
-| `renderBullet(bullet, layer)` | 子弹 | `void` | 渲染单颗或块状子弹。 |
-| `renderPowerup(powerup, layer)` | 道具 | `void` | 渲染道具及其光晕。 |
-| `renderParticle(particle, layer)` | 粒子 | `void` | 按生命周期渲染粒子颜色。 |
+| `renderSprite(sprite, options)` | 对象 + 选项 | `void` | 渲染任意精灵式多行贴图。 |
+| `renderGlyph(glyph, options)` | 对象 + 选项 | `void` | 渲染单字符或字符块对象。 |
 | `present()` | 无 | `void` | 清屏并写出当前缓冲区。 |
 | `getBuffer()` | 无 | `ScreenBuffer` | 返回底层缓冲区。 |
 | `toString()` | 无 | `string` | 返回当前 ANSI 帧字符串。 |

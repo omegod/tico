@@ -71,6 +71,33 @@ function run() {
     assert(collision.circleCollision(a, b) === true, 'Circles should collide');
   })) passed++; else failed++;
 
+  if (test('should find collision pairs between collections', () => {
+    const sources = [
+      { x: 0, y: 0, width: 2, height: 2, active: true },
+      { x: 10, y: 10, width: 2, height: 2, active: true }
+    ];
+    const targets = [
+      { x: 1, y: 1, width: 2, height: 2, active: true },
+      { x: 20, y: 20, width: 2, height: 2, active: true }
+    ];
+
+    const pairs = collision.findPairs(sources, targets, { stopOnFirstTarget: true });
+    assert(pairs.length === 1, `Expected 1 pair, got ${pairs.length}`);
+    assert(pairs[0].source === sources[0], 'Expected first source to collide');
+    assert(pairs[0].target === targets[0], 'Expected first target to collide');
+  })) passed++; else failed++;
+
+  if (test('should check collision against any target in a collection', () => {
+    const entity = { x: 0, y: 0, width: 2, height: 2, active: true };
+    const targets = [
+      { x: 5, y: 5, width: 2, height: 2, active: true },
+      { x: 1, y: 1, width: 2, height: 2, active: true }
+    ];
+
+    assert(collision.collidesWithAny(entity, targets) === true, 'Entity should collide with at least one target');
+    assert(collision.findCollisionsFor(entity, targets).length === 1, 'Should return only overlapping targets');
+  })) passed++; else failed++;
+
   // Test: 屏幕内检测
   if (test('should detect on screen', () => {
     const entity = { x: 5, y: 5, width: 10, height: 10 };
