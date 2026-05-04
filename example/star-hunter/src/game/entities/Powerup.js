@@ -11,7 +11,7 @@ class Powerup extends Entity {
     super('powerup', data);
 
     // 道具类型
-    this.type = data.type || PowerupType.HEAL;
+    this.powerupType = data.powerupType || data.type || PowerupType.HEAL;
     this.char = data.char || '♥';
     this.color = data.color || '#ffffff';
     this.name = data.name || 'Unknown';
@@ -63,7 +63,7 @@ class Powerup extends Entity {
     return new Powerup({
       x: x,
       y: y,
-      type: type,
+      powerupType: type,
       char: fallback.char,
       color: fallback.color,
       art: fallback.art,
@@ -80,7 +80,7 @@ class Powerup extends Entity {
     return new Powerup({
       x: x,
       y: y,
-      type: type,
+      powerupType: type,
       char: fallback.char,
       color: fallback.color,
       art: fallback.art,

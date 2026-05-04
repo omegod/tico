@@ -789,7 +789,7 @@ my-game/
 | `data.x` / `data.y` | number | `0` | 位置。 |
 | `data.width` / `data.height` | number | `1` | 碰撞盒尺寸。 |
 | `data.art` | array | `[]` | ASCII 贴图。 |
-| `data.color` | string | `#ffffff` | 渲染颜色。 |
+| `data.color` | string \| null | `null` | ANSI 转义序列（使用 `COLORS.*` 常量）。 |
 | `data.life` | number | `Infinity` | 剩余生命周期。 |
 | `data.maxLife` | number | `life` | 生命周期上限。 |
 | `data.speed` | number | `1` | 基础速度。 |

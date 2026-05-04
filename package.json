@@ -1,6 +1,6 @@
 {
   "name": "@omgod/tico",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "tico is a reusable high-performance 2D command-line game engine with example games",
   "main": "src/index.js",
   "bin": {
@@ -30,7 +30,6 @@
     "example": "example",
     "test": "tests"
   },
-  "devDependencies": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/omegod/tico.git"

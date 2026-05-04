@@ -33,7 +33,7 @@ class Entity {
     this.active = data.active !== undefined ? Boolean(data.active) : true;
 
     this.art = data.art || [];
-    this.color = data.color || '#ffffff';
+    this.color = data.color ?? null;
 
     this.life = data.life || Infinity;
     this.maxLife = data.maxLife || this.life;

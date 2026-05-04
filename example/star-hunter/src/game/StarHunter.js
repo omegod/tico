@@ -944,10 +944,11 @@ class StarHunter {
    * 道具被收集
    */
   _onPowerupCollected(powerup) {
-    const config = getPowerupConfig(powerup.type);
+    const powerupType = powerup.powerupType || powerup.type;
+    const config = getPowerupConfig(powerupType);
     if (config) {
       const player = this.entities.getPlayer();
-      if (powerup.type === PowerupType.INVINCIBLE && player) {
+      if (powerupType === PowerupType.INVINCIBLE && player) {
         // 无敌道具：同时设置 StarHunter.invincibleTimer 和 Player.invincibleTimer
         this.invincibleTimer = 180;
         player.setInvincible(180);

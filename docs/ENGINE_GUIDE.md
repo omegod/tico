@@ -789,7 +789,7 @@ Methods:
 | `data.x` / `data.y` | number | `0` | Position. |
 | `data.width` / `data.height` | number | `1` | Bounding box size. |
 | `data.art` | array | `[]` | ASCII art representation. |
-| `data.color` | string | `#ffffff` | Render color. |
+| `data.color` | string \| null | `null` | ANSI escape sequence (use `COLORS.*` constants). |
 | `data.life` | number | `Infinity` | Remaining life ticks. |
 | `data.maxLife` | number | `life` | Maximum life for effect systems. |
 | `data.speed` | number | `1` | Base speed. |
