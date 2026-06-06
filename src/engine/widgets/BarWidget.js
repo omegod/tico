@@ -12,7 +12,7 @@ class BarWidget extends Widget {
     this.color = options.color || null;
     this.emptyColor = options.emptyColor || null;
     this.bold = Boolean(options.bold);
-    this.filledChar = options.filledChar || '█';
+    this.filledChar = options.filledChar || '▓';
     this.emptyChar = options.emptyChar || '░';
   }
 
